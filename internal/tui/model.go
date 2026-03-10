@@ -235,9 +235,27 @@ func (m *Model) View() string {
 	listLines := strings.Split(listPane, "\n")
 	contentLines := strings.Split(contentPane, "\n")
 	
-	// Calculate pane widths (40/60 split)
+	// Calculate pane widths (40/60 split with 1 char separator)
+	// Ensure minimum widths to prevent negative values
+	minWidth := 10
+	if m.width < minWidth*2+1 {
+		// Terminal too small, just show list pane
+		return m.renderEmailListPane() + "\n" + m.renderStatusBar()
+	}
+	
 	listWidth := m.width * 40 / 100
-	contentWidth := m.width - listWidth
+	separatorWidth := 1
+	contentWidth := m.width - listWidth - separatorWidth
+	
+	// Ensure minimum widths
+	if listWidth < minWidth {
+		listWidth = minWidth
+		contentWidth = m.width - listWidth - separatorWidth
+	}
+	if contentWidth < minWidth {
+		contentWidth = minWidth
+		listWidth = m.width - contentWidth - separatorWidth
+	}
 	
 	// Ensure we have enough lines for both panes
 	maxLines := len(listLines)
@@ -266,8 +284,9 @@ func (m *Model) View() string {
 		// Pad or truncate content line to fit width
 		contentLine = padOrTruncate(contentLine, contentWidth)
 		
-		// Combine the lines
+		// Combine the lines with separator
 		result.WriteString(listLine)
+		result.WriteString(separatorStyle.Render("│"))
 		result.WriteString(contentLine)
 		
 		if i < maxLines-1 {
@@ -287,6 +306,11 @@ func (m *Model) View() string {
 
 // padOrTruncate pads or truncates a string to the specified width
 func padOrTruncate(s string, width int) string {
+	// Handle invalid widths
+	if width <= 0 {
+		return ""
+	}
+	
 	// Remove ANSI escape codes for length calculation
 	visibleLen := visualLength(s)
 	
@@ -323,6 +347,45 @@ func visualLength(s string) int {
 	return length
 }
 
+// wrapText wraps text to fit within the specified width
+func wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	
+	lines := strings.Split(text, "\n")
+	var wrappedLines []string
+	
+	for _, line := range lines {
+		if len(line) <= width {
+			wrappedLines = append(wrappedLines, line)
+			continue
+		}
+		
+		// Wrap long lines
+		words := strings.Fields(line)
+		if len(words) == 0 {
+			wrappedLines = append(wrappedLines, "")
+			continue
+		}
+		
+		currentLine := words[0]
+		for _, word := range words[1:] {
+			// Check if adding the next word would exceed width
+			if len(currentLine)+1+len(word) <= width {
+				currentLine += " " + word
+			} else {
+				// Start a new line
+				wrappedLines = append(wrappedLines, currentLine)
+				currentLine = word
+			}
+		}
+		wrappedLines = append(wrappedLines, currentLine)
+	}
+	
+	return strings.Join(wrappedLines, "\n")
+}
+
 // renderStatusBar renders the status bar at the bottom
 func (m *Model) renderStatusBar() string {
 	if m.statusMessage != "" {
@@ -355,9 +418,10 @@ func (m *Model) updateViewportSizes() {
 		availableHeight = 1
 	}
 	
-	// List pane takes 40% of width, content pane takes 60%
+	// List pane takes 40% of width, separator takes 1 char, content pane takes the rest
 	listWidth := m.width * 40 / 100
-	contentWidth := m.width - listWidth
+	separatorWidth := 1
+	contentWidth := m.width - listWidth - separatorWidth
 	
 	// Ensure minimum widths
 	if listWidth < 10 {
@@ -530,7 +594,9 @@ func (m *Model) renderEmailContentPane() string {
 	}
 
 	if body != "" {
-		content += bodyStyle.Render(body)
+		// Wrap body text to fit viewport width (accounting for padding)
+		wrappedBody := wrapText(body, m.contentViewport.Width-2)
+		content += bodyStyle.Render(wrappedBody)
 	}
 
 	// Render attachments

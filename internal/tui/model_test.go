@@ -413,8 +413,8 @@ func TestUpdateViewportSizesWithContentPane(t *testing.T) {
 		t.Errorf("Expected list viewport width %d, got %d", expectedListWidth, m.listViewport.Width)
 	}
 
-	// Content pane should be 60% of width (no border adjustment)
-	expectedContentWidth := 100 - (100 * 40 / 100) // 60
+	// Content pane should be 60% of width minus separator (1 char)
+	expectedContentWidth := 100 - (100 * 40 / 100) - 1 // 59
 	if m.contentViewport.Width != expectedContentWidth {
 		t.Errorf("Expected content viewport width %d, got %d", expectedContentWidth, m.contentViewport.Width)
 	}

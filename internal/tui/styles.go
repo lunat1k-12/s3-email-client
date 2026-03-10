@@ -64,4 +64,8 @@ var (
 			Background(lipgloss.Color("235")).
 			Padding(0, 1).
 			Bold(true)
+
+	// Separator style
+	separatorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
 )
