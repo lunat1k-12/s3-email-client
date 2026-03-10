@@ -8,19 +8,22 @@ import (
 	"s3emailclient/internal/config"
 	"s3emailclient/internal/navigation"
 	"s3emailclient/internal/parser"
+	"s3emailclient/internal/response"
 	"s3emailclient/internal/s3client"
+	"s3emailclient/internal/sesclient"
 	"s3emailclient/internal/tui"
 )
 
 // Application coordinates all components and manages application lifecycle
 type Application struct {
-	s3Client   s3client.S3Client
-	parser     parser.EmailParser
-	model      *tui.Model
-	navHandler navigation.NavigationHandler
-	config     *config.Config
-	program    *tea.Program
-	emailCache map[string]*parser.Email // Cache of parsed emails by S3 key
+	s3Client        s3client.S3Client
+	parser          parser.EmailParser
+	model           *tui.Model
+	navHandler      navigation.NavigationHandler
+	responseHandler response.ResponseHandler
+	config          *config.Config
+	program         *tea.Program
+	emailCache      map[string]*parser.Email // Cache of parsed emails by S3 key
 }
 
 // New creates a new Application with dependency injection for all components
@@ -46,20 +49,42 @@ func New(cfg *config.Config) (*Application, error) {
 	// Initialize navigation handler
 	navHandler := navigation.NewNavigationHandler()
 
+	// Initialize SES client for email responses
+	// Use SESRegion if configured, otherwise fall back to S3 region
+	sesRegion := cfg.SESRegion
+	if sesRegion == "" {
+		sesRegion = cfg.Region
+	}
+	
+	sesClient, err := sesclient.NewSESClient(ctx, sesclient.Config{
+		Region:     sesRegion,
+		AWSProfile: cfg.AWSProfile,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SES client: %w", err)
+	}
+
+	// Initialize response handler with config and SES client
+	responseHandler := response.NewResponseHandler(cfg, sesClient)
+
 	// Initialize TUI model
 	model := &tui.Model{}
 
 	app := &Application{
-		s3Client:   s3Client,
-		parser:     emailParser,
-		model:      model,
-		navHandler: navHandler,
-		config:     cfg,
-		emailCache: make(map[string]*parser.Email),
+		s3Client:        s3Client,
+		parser:          emailParser,
+		model:           model,
+		navHandler:      navHandler,
+		responseHandler: responseHandler,
+		config:          cfg,
+		emailCache:      make(map[string]*parser.Email),
 	}
 
 	// Wire navigation handler into the model
 	model.SetNavigationHandler(navHandler)
+
+	// Wire response handler into the model
+	model.SetResponseHandler(responseHandler)
 
 	// Wire email loading callback into the model
 	model.SetOnLoadEmail(app.LoadEmailCmd)
@@ -132,7 +157,10 @@ func (app *Application) LoadEmailCmd(key string) tea.Cmd {
 			}
 		}
 
-		return tui.EmailLoadedMsg{Email: tuiEmail}
+		return tui.EmailLoadedMsg{
+			Email:       tuiEmail,
+			ParserEmail: email,
+		}
 	}
 }
 

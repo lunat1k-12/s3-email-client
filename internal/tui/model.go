@@ -1,13 +1,17 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"s3emailclient/internal/navigation"
+	"s3emailclient/internal/parser"
+	"s3emailclient/internal/response"
 )
 
 // LoadEmailMsg is sent when an email should be loaded
@@ -17,7 +21,8 @@ type LoadEmailMsg struct {
 
 // EmailLoadedMsg is sent when an email has been successfully loaded and parsed
 type EmailLoadedMsg struct {
-	Email *Email
+	Email       *Email
+	ParserEmail *parser.Email // Original parser.Email for response actions
 }
 
 // EmailLoadErrorMsg is sent when email loading fails
@@ -66,16 +71,27 @@ type Model struct {
 	emailList     []EmailListItem
 	selectedIndex int
 	currentEmail  *Email
+	currentParserEmail *parser.Email // Original parser.Email for response actions
 
 	// UI state
 	focusedPane     Pane
 	listViewport    viewport.Model
 	contentViewport viewport.Model
 
+	// Compose view state
+	composeMode    bool
+	composeData    *response.ComposeData
+	composeInput   textarea.Model
+	composeSending bool
+
 	// Status
 	loading       bool
 	statusMessage string
 	err           error
+
+	// Error message display
+	errorMessage     string
+	errorDisplayTime time.Time
 
 	// Terminal dimensions
 	width  int
@@ -83,6 +99,9 @@ type Model struct {
 
 	// Navigation handler for processing keyboard input
 	navHandler NavigationHandler
+
+	// Response handler for email response workflow
+	responseHandler response.ResponseHandler
 
 	// Callback for loading emails when selection changes
 	onLoadEmail func(key string) tea.Cmd
@@ -109,6 +128,74 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	
 	case tea.KeyMsg:
+		// Handle textarea input in compose mode
+		if m.composeMode {
+			// Handle Esc cancel action
+			if msg.String() == "esc" {
+				// Set composeMode to false, clear composeData and composeInput
+				m.composeMode = false
+				m.composeData = nil
+				m.composeInput.Reset()
+				m.composeSending = false
+				m.err = nil
+				m.statusMessage = ""
+				
+				// Update navigation state to set ComposeMode to false
+				// (This happens automatically when navHandler.HandleKey is called next)
+				
+				// Return to list view without confirmation
+				return m, nil
+			}
+			
+			// Handle Ctrl+S send action
+			if msg.String() == "ctrl+s" {
+				// Set composeSending to true
+				m.composeSending = true
+				
+				// Call response handler SendResponse with composeData
+				if m.responseHandler != nil && m.composeData != nil {
+					ctx := context.Background()
+					err := m.responseHandler.SendResponse(ctx, m.composeData)
+					
+					if err != nil {
+						// If error, set composeSending to false, display error message, remain in compose view
+						m.composeSending = false
+						m.err = err
+						m.statusMessage = ""
+						return m, nil
+					}
+					
+					// If success, set composeMode to false, display success message, return to list view
+					m.composeMode = false
+					m.composeSending = false
+					m.composeData = nil
+					m.statusMessage = "Email sent successfully"
+					m.err = nil
+					
+					// Clear the compose input
+					m.composeInput.Reset()
+					
+					return m, nil
+				}
+				
+				// If no response handler, set error and remain in compose view
+				m.composeSending = false
+				m.err = fmt.Errorf("response handler not configured")
+				return m, nil
+			}
+			
+			// Handle regular textarea input
+			var cmd tea.Cmd
+			m.composeInput, cmd = m.composeInput.Update(msg)
+			
+			// Store updated textarea value in composeData.Body
+			if m.composeData != nil {
+				m.composeData.Body = m.composeInput.Value()
+			}
+			
+			return m, cmd
+		}
+		
 		// Wire keyboard events to NavigationHandler
 		if m.navHandler != nil {
 			// Build navigation state
@@ -118,6 +205,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				EmailCount:    len(m.emailList),
 				ContentScroll: m.contentViewport.YOffset,
 				MaxScroll:     m.contentViewport.TotalLineCount(),
+				CurrentEmail:  m.currentParserEmail,
+				ComposeMode:   m.composeMode,
 			}
 			
 			// Get action from navigation handler
@@ -137,6 +226,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case EmailLoadedMsg:
 		// Update model with loaded email
 		m.currentEmail = msg.Email
+		m.currentParserEmail = msg.ParserEmail
 		m.loading = false
 		m.statusMessage = ""
 		m.err = nil
@@ -162,6 +252,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	
 	return m, cmd
 }
+// executeAction executes a navigation action and updates model state accordingly
 // executeAction executes a navigation action and updates model state accordingly
 func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 	switch a := action.(type) {
@@ -211,6 +302,35 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case *navigation.ResponseAction:
+		// Handle email response workflow
+		if a.Email == nil {
+			m.err = fmt.Errorf("no email selected for response")
+			return m, nil
+		}
+
+		// Call response handler InitiateResponse with email from action
+		// Note: Using context.Background() for now; could be enhanced with proper context management
+		composeData, err := m.responseHandler.InitiateResponse(context.Background(), a.Email)
+		if err != nil {
+			// Display error message and remain in list view
+			m.err = err
+			m.statusMessage = ""
+			return m, nil
+		}
+
+		// Success: transition to compose mode
+		m.composeMode = true
+		m.composeData = composeData
+		m.composeInput = initComposeTextarea()
+		m.err = nil
+		m.statusMessage = ""
+
+		// Navigation state ComposeMode will be updated on next HandleKey call
+		// (The navigation handler checks state.ComposeMode to disable navigation keys)
+
+		return m, nil
+
 	case *navigation.QuitAction:
 		// Quit the application
 		return m, tea.Quit
@@ -227,6 +347,11 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 
 // View renders the TUI
 func (m *Model) View() string {
+	// If in compose mode, render compose view instead of split-pane layout
+	if m.composeMode {
+		return m.renderComposeView()
+	}
+
 	// Render both panes side by side
 	listPane := m.renderEmailListPane()
 	contentPane := m.renderEmailContentPane()
@@ -299,6 +424,13 @@ func (m *Model) View() string {
 	if statusBar != "" {
 		result.WriteString("\n")
 		result.WriteString(statusBar)
+	}
+	
+	// Add error message if present
+	errorMsg := m.renderErrorMessage()
+	if errorMsg != "" {
+		result.WriteString("\n")
+		result.WriteString(errorMsg)
 	}
 	
 	return result.String()
@@ -747,6 +879,11 @@ func (m *Model) SetStatusMessage(msg string) {
 // SetNavigationHandler sets the navigation handler for processing keyboard input
 func (m *Model) SetNavigationHandler(handler NavigationHandler) {
 	m.navHandler = handler
+}
+
+// SetResponseHandler sets the response handler for email response workflow
+func (m *Model) SetResponseHandler(handler response.ResponseHandler) {
+	m.responseHandler = handler
 }
 
 // SetOnLoadEmail sets the callback function for loading emails

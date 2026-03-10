@@ -8,6 +8,19 @@ region: "us-east-1"
 # AWS Profile (optional - uses default if not specified)
 # aws_profile: "my-profile"
 
+# Email Response Configuration (required for sending responses)
+# IMPORTANT: The source_email address must be verified in Amazon SES before you can send emails.
+# To verify an email address:
+#   1. Go to the AWS SES Console: https://console.aws.amazon.com/ses/
+#   2. Navigate to "Verified identities"
+#   3. Click "Create identity" and verify your email address
+#   4. Check your inbox for the verification email and click the link
+source_email: "user@example.com"  # Your verified email address for sending responses
+
+# SES Region (optional - defaults to S3 region if not specified)
+# Use this if your SES service is in a different region than your S3 bucket
+# ses_region: "us-east-1"
+
 # UI Configuration (optional - defaults shown)
 list_pane_width: 40  # Percentage of screen width for email list (10-90)
 refresh_rate: 100    # UI refresh rate in milliseconds (minimum 10)

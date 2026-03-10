@@ -25,6 +25,11 @@ type Email struct {
 	Body        string
 	HTMLBody    string
 	Attachments []Attachment
+	
+	// Email threading headers for reply functionality
+	MessageID  string   // Message-ID header
+	ReplyTo    string   // Reply-To header (optional)
+	References []string // References header for threading
 }
 
 // Attachment represents an email attachment with metadata
@@ -91,6 +96,11 @@ func (p *enmimeParser) Parse(data []byte) (*Email, error) {
 		})
 	}
 
+	// Extract email threading headers
+	messageID := envelope.GetHeader("Message-ID")
+	replyTo := envelope.GetHeader("Reply-To")
+	references := extractReferences(envelope.GetHeaderValues("References"))
+
 	email := &Email{
 		Subject:     envelope.GetHeader("Subject"),
 		From:        envelope.GetHeader("From"),
@@ -100,6 +110,9 @@ func (p *enmimeParser) Parse(data []byte) (*Email, error) {
 		Body:        body,
 		HTMLBody:    htmlBody,
 		Attachments: attachments,
+		MessageID:   messageID,
+		ReplyTo:     replyTo,
+		References:  references,
 	}
 
 	return email, nil
@@ -119,6 +132,22 @@ func extractAddresses(headers []string) []string {
 	}
 
 	return addresses
+}
+
+// extractReferences parses References header into a slice of message IDs
+func extractReferences(headers []string) []string {
+	if len(headers) == 0 {
+		return []string{}
+	}
+
+	references := make([]string, 0, len(headers))
+	for _, header := range headers {
+		if header != "" {
+			references = append(references, header)
+		}
+	}
+
+	return references
 }
 
 // convertHTMLToText converts HTML content to plain text

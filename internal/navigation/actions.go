@@ -1,5 +1,9 @@
 package navigation
 
+import (
+	"s3emailclient/internal/parser"
+)
+
 // Action represents a navigation action that can be executed
 type Action interface {
 	// Execute performs the action
@@ -44,6 +48,16 @@ type QuitAction struct{}
 
 // Execute implements Action for QuitAction
 func (a *QuitAction) Execute() bool {
+	return true
+}
+
+// ResponseAction initiates email response workflow
+type ResponseAction struct {
+	Email *parser.Email
+}
+
+// Execute implements Action for ResponseAction
+func (a *ResponseAction) Execute() bool {
 	return true
 }
 

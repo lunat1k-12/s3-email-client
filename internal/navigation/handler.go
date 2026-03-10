@@ -1,5 +1,7 @@
 package navigation
 
+import "s3emailclient/internal/parser"
+
 // NavigationHandler processes keyboard input and returns appropriate actions
 type NavigationHandler interface {
 	// HandleKey processes a keyboard event and returns the appropriate action
@@ -13,6 +15,8 @@ type State struct {
 	EmailCount    int
 	ContentScroll int
 	MaxScroll     int
+	CurrentEmail  *parser.Email // Current selected email for response actions
+	ComposeMode   bool          // Whether compose view is active
 }
 
 // Pane represents which pane currently has focus
@@ -33,6 +37,14 @@ func NewNavigationHandler() NavigationHandler {
 
 // HandleKey maps keyboard events to actions with boundary validation
 func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
+	// Disable navigation keys in compose mode
+	if state.ComposeMode {
+		switch key {
+		case "j", "k", "h", "l":
+			return &NoOpAction{}
+		}
+	}
+
 	switch key {
 	case "j":
 		if state.FocusedPane == ListPane {
@@ -65,6 +77,14 @@ func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
 	case "l":
 		// Move focus to content pane
 		return &ChangeFocusAction{Pane: ContentPane}
+
+	case "r":
+		// Initiate email response
+		if state.FocusedPane == ListPane && state.CurrentEmail != nil {
+			return &ResponseAction{Email: state.CurrentEmail}
+		}
+		// No email selected, no action
+		return &NoOpAction{}
 
 	case "q":
 		// Quit application

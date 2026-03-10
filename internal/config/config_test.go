@@ -249,3 +249,123 @@ func TestGetConfigDir(t *testing.T) {
 		t.Errorf("getConfigDir() = %v, want %v", dir, expected)
 	}
 }
+
+func TestSESRegionDefaultFallback(t *testing.T) {
+	tests := []struct {
+		name              string
+		region            string
+		sesRegion         string
+		expectedSESRegion string
+	}{
+		{
+			name:              "ses_region not specified - defaults to region",
+			region:            "us-west-2",
+			sesRegion:         "",
+			expectedSESRegion: "us-west-2",
+		},
+		{
+			name:              "ses_region explicitly specified",
+			region:            "us-west-2",
+			sesRegion:         "us-east-1",
+			expectedSESRegion: "us-east-1",
+		},
+		{
+			name:              "ses_region same as region",
+			region:            "eu-west-1",
+			sesRegion:         "eu-west-1",
+			expectedSESRegion: "eu-west-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary config directory
+			tempDir := t.TempDir()
+			configDir := filepath.Join(tempDir, ".config", "s3emailclient")
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				t.Fatalf("Failed to create config directory: %v", err)
+			}
+
+			// Create a test config file
+			configContent := "bucket_name: test-bucket\n"
+			configContent += "region: " + tt.region + "\n"
+			if tt.sesRegion != "" {
+				configContent += "ses_region: " + tt.sesRegion + "\n"
+			}
+
+			configPath := filepath.Join(configDir, "config.yaml")
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			// Temporarily override home directory
+			originalHome := os.Getenv("HOME")
+			os.Setenv("HOME", tempDir)
+			defer os.Setenv("HOME", originalHome)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() failed: %v", err)
+			}
+
+			if cfg.SESRegion != tt.expectedSESRegion {
+				t.Errorf("SESRegion = %v, want %v", cfg.SESRegion, tt.expectedSESRegion)
+			}
+		})
+	}
+}
+
+func TestSESRegionFallbackWithEnvironmentVariables(t *testing.T) {
+	tests := []struct {
+		name              string
+		setRegionEnv      bool
+		regionEnv         string
+		setSESRegionEnv   bool
+		sesRegionEnv      string
+		expectedSESRegion string
+	}{
+		{
+			name:              "only region env set - ses_region defaults to region",
+			setRegionEnv:      true,
+			regionEnv:         "us-west-2",
+			setSESRegionEnv:   false,
+			expectedSESRegion: "us-west-2",
+		},
+		{
+			name:              "both region and ses_region env set",
+			setRegionEnv:      true,
+			regionEnv:         "us-west-2",
+			setSESRegionEnv:   true,
+			sesRegionEnv:      "eu-central-1",
+			expectedSESRegion: "eu-central-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			os.Setenv("S3EMAIL_BUCKET_NAME", "env-test-bucket")
+			if tt.setRegionEnv {
+				os.Setenv("S3EMAIL_REGION", tt.regionEnv)
+			}
+			if tt.setSESRegionEnv {
+				os.Setenv("S3EMAIL_SES_REGION", tt.sesRegionEnv)
+			}
+
+			defer func() {
+				os.Unsetenv("S3EMAIL_BUCKET_NAME")
+				os.Unsetenv("S3EMAIL_REGION")
+				os.Unsetenv("S3EMAIL_SES_REGION")
+			}()
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load() failed: %v", err)
+			}
+
+			if cfg.SESRegion != tt.expectedSESRegion {
+				t.Errorf("SESRegion = %v, want %v", cfg.SESRegion, tt.expectedSESRegion)
+			}
+		})
+	}
+}

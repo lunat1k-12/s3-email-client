@@ -22,6 +22,10 @@ type Config struct {
 	// Behavior
 	CacheEmails  bool `mapstructure:"cache_emails"`   // Default: true
 	MaxCacheSize int  `mapstructure:"max_cache_size"` // Default: 50
+
+	// Email Response Configuration
+	SourceEmail string `mapstructure:"source_email"`
+	SESRegion   string `mapstructure:"ses_region"`
 }
 
 // Load loads configuration from multiple sources with priority:
@@ -61,11 +65,18 @@ func Load() (*Config, error) {
 	v.BindEnv("refresh_rate", "S3EMAIL_REFRESH_RATE")
 	v.BindEnv("cache_emails", "S3EMAIL_CACHE_EMAILS")
 	v.BindEnv("max_cache_size", "S3EMAIL_MAX_CACHE_SIZE")
+	v.BindEnv("source_email", "S3EMAIL_SOURCE_EMAIL")
+	v.BindEnv("ses_region", "S3EMAIL_SES_REGION")
 
 	// Unmarshal into Config struct
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Apply SES region default fallback
+	if cfg.SESRegion == "" {
+		cfg.SESRegion = cfg.Region
 	}
 
 	// Validate required fields
@@ -119,3 +130,28 @@ func (c *Config) Validate() error {
 
 	return nil
 }
+
+// ValidateSourceEmail validates that the source email is configured and has a valid format
+func (c *Config) ValidateSourceEmail() error {
+	if c.SourceEmail == "" {
+		return fmt.Errorf("source_email is required for sending responses")
+	}
+
+	// Basic email format validation
+	if !containsAt(c.SourceEmail) {
+		return fmt.Errorf("source_email must be a valid email address")
+	}
+
+	return nil
+}
+
+// containsAt checks if a string contains the '@' character
+func containsAt(s string) bool {
+	for _, c := range s {
+		if c == '@' {
+			return true
+		}
+	}
+	return false
+}
+
