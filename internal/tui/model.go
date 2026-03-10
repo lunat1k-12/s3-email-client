@@ -68,9 +68,9 @@ type Attachment struct {
 // Model represents the Bubble Tea model for the TUI application
 type Model struct {
 	// Email data
-	emailList     []EmailListItem
-	selectedIndex int
-	currentEmail  *Email
+	emailList          []EmailListItem
+	selectedIndex      int
+	currentEmail       *Email
 	currentParserEmail *parser.Email // Original parser.Email for response actions
 
 	// UI state
@@ -126,7 +126,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.updateViewportSizes()
 		return m, nil
-	
+
 	case tea.KeyMsg:
 		// Handle textarea input in compose mode
 		if m.composeMode {
@@ -139,24 +139,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.composeSending = false
 				m.err = nil
 				m.statusMessage = ""
-				
+
 				// Update navigation state to set ComposeMode to false
 				// (This happens automatically when navHandler.HandleKey is called next)
-				
+
 				// Return to list view without confirmation
 				return m, nil
 			}
-			
+
 			// Handle Ctrl+S send action
 			if msg.String() == "ctrl+s" {
 				// Set composeSending to true
 				m.composeSending = true
-				
+
 				// Call response handler SendResponse with composeData
 				if m.responseHandler != nil && m.composeData != nil {
 					ctx := context.Background()
 					err := m.responseHandler.SendResponse(ctx, m.composeData)
-					
+
 					if err != nil {
 						// If error, set composeSending to false, display error message, remain in compose view
 						m.composeSending = false
@@ -164,38 +164,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.statusMessage = ""
 						return m, nil
 					}
-					
+
 					// If success, set composeMode to false, display success message, return to list view
 					m.composeMode = false
 					m.composeSending = false
 					m.composeData = nil
 					m.statusMessage = "Email sent successfully"
 					m.err = nil
-					
+
 					// Clear the compose input
 					m.composeInput.Reset()
-					
+
 					return m, nil
 				}
-				
+
 				// If no response handler, set error and remain in compose view
 				m.composeSending = false
 				m.err = fmt.Errorf("response handler not configured")
 				return m, nil
 			}
-			
+
 			// Handle regular textarea input
 			var cmd tea.Cmd
 			m.composeInput, cmd = m.composeInput.Update(msg)
-			
+
 			// Store updated textarea value in composeData.Body
 			if m.composeData != nil {
 				m.composeData.Body = m.composeInput.Value()
 			}
-			
+
 			return m, cmd
 		}
-		
+
 		// Wire keyboard events to NavigationHandler
 		if m.navHandler != nil {
 			// Build navigation state
@@ -208,21 +208,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				CurrentEmail:  m.currentParserEmail,
 				ComposeMode:   m.composeMode,
 			}
-			
+
 			// Get action from navigation handler
 			action := m.navHandler.HandleKey(msg.String(), state)
-			
+
 			// Execute action and update model state
 			return m.executeAction(action)
 		}
-	
+
 	case LoadEmailMsg:
 		// Set loading state when email loading starts
 		m.loading = true
 		m.err = nil
 		m.statusMessage = "Loading email..."
 		return m, nil
-	
+
 	case EmailLoadedMsg:
 		// Update model with loaded email
 		m.currentEmail = msg.Email
@@ -232,7 +232,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = nil
 		m.refreshContentViewport()
 		return m, nil
-	
+
 	case EmailLoadErrorMsg:
 		// Handle email loading error
 		m.loading = false
@@ -241,7 +241,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentEmail = nil
 		return m, nil
 	}
-	
+
 	// Update viewports based on focused pane
 	var cmd tea.Cmd
 	if m.focusedPane == ListPane {
@@ -249,9 +249,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	} else {
 		m.contentViewport, cmd = m.contentViewport.Update(msg)
 	}
-	
+
 	return m, cmd
 }
+
 // executeAction executes a navigation action and updates model state accordingly
 // executeAction executes a navigation action and updates model state accordingly
 func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
@@ -355,11 +356,11 @@ func (m *Model) View() string {
 	// Render both panes side by side
 	listPane := m.renderEmailListPane()
 	contentPane := m.renderEmailContentPane()
-	
+
 	// Split the panes into lines for side-by-side rendering
 	listLines := strings.Split(listPane, "\n")
 	contentLines := strings.Split(contentPane, "\n")
-	
+
 	// Calculate pane widths (40/60 split with 1 char separator)
 	// Ensure minimum widths to prevent negative values
 	minWidth := 10
@@ -367,11 +368,11 @@ func (m *Model) View() string {
 		// Terminal too small, just show list pane
 		return m.renderEmailListPane() + "\n" + m.renderStatusBar()
 	}
-	
+
 	listWidth := m.width * 40 / 100
 	separatorWidth := 1
 	contentWidth := m.width - listWidth - separatorWidth
-	
+
 	// Ensure minimum widths
 	if listWidth < minWidth {
 		listWidth = minWidth
@@ -381,13 +382,13 @@ func (m *Model) View() string {
 		contentWidth = minWidth
 		listWidth = m.width - contentWidth - separatorWidth
 	}
-	
+
 	// Ensure we have enough lines for both panes
 	maxLines := len(listLines)
 	if len(contentLines) > maxLines {
 		maxLines = len(contentLines)
 	}
-	
+
 	// Build the split-pane view
 	var result strings.Builder
 	for i := 0; i < maxLines; i++ {
@@ -396,43 +397,43 @@ func (m *Model) View() string {
 		if i < len(listLines) {
 			listLine = listLines[i]
 		}
-		
+
 		// Pad or truncate list line to fit width
 		listLine = padOrTruncate(listLine, listWidth)
-		
+
 		// Get content pane line (or empty if out of bounds)
 		contentLine := ""
 		if i < len(contentLines) {
 			contentLine = contentLines[i]
 		}
-		
+
 		// Pad or truncate content line to fit width
 		contentLine = padOrTruncate(contentLine, contentWidth)
-		
+
 		// Combine the lines with separator
 		result.WriteString(listLine)
 		result.WriteString(separatorStyle.Render("│"))
 		result.WriteString(contentLine)
-		
+
 		if i < maxLines-1 {
 			result.WriteString("\n")
 		}
 	}
-	
+
 	// Add status bar at the bottom
 	statusBar := m.renderStatusBar()
 	if statusBar != "" {
 		result.WriteString("\n")
 		result.WriteString(statusBar)
 	}
-	
+
 	// Add error message if present
 	errorMsg := m.renderErrorMessage()
 	if errorMsg != "" {
 		result.WriteString("\n")
 		result.WriteString(errorMsg)
 	}
-	
+
 	return result.String()
 }
 
@@ -442,15 +443,15 @@ func padOrTruncate(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	
+
 	// Remove ANSI escape codes for length calculation
 	visibleLen := visualLength(s)
-	
+
 	if visibleLen > width {
 		// Truncate (accounting for ANSI codes is complex, so we'll use a simple approach)
 		return s[:width]
 	}
-	
+
 	// Pad with spaces
 	padding := width - visibleLen
 	return s + strings.Repeat(" ", padding)
@@ -461,7 +462,7 @@ func visualLength(s string) int {
 	// Simple implementation that counts runes, ignoring ANSI escape sequences
 	length := 0
 	inEscape := false
-	
+
 	for _, r := range s {
 		if r == '\x1b' {
 			inEscape = true
@@ -475,7 +476,7 @@ func visualLength(s string) int {
 		}
 		length++
 	}
-	
+
 	return length
 }
 
@@ -484,23 +485,23 @@ func wrapText(text string, width int) string {
 	if width <= 0 {
 		return text
 	}
-	
+
 	lines := strings.Split(text, "\n")
 	var wrappedLines []string
-	
+
 	for _, line := range lines {
 		if len(line) <= width {
 			wrappedLines = append(wrappedLines, line)
 			continue
 		}
-		
+
 		// Wrap long lines
 		words := strings.Fields(line)
 		if len(words) == 0 {
 			wrappedLines = append(wrappedLines, "")
 			continue
 		}
-		
+
 		currentLine := words[0]
 		for _, word := range words[1:] {
 			// Check if adding the next word would exceed width
@@ -514,7 +515,7 @@ func wrapText(text string, width int) string {
 		}
 		wrappedLines = append(wrappedLines, currentLine)
 	}
-	
+
 	return strings.Join(wrappedLines, "\n")
 }
 
@@ -523,22 +524,22 @@ func (m *Model) renderStatusBar() string {
 	if m.statusMessage != "" {
 		return statusBarStyle.Render(m.statusMessage)
 	}
-	
+
 	if m.err != nil {
 		return errorStyle.Render("Error: " + m.err.Error())
 	}
-	
+
 	if m.loading {
 		return loadingStyle.Render("Loading...")
 	}
-	
+
 	// Default status showing keybindings
 	focusIndicator := "List"
 	if m.focusedPane == ContentPane {
 		focusIndicator = "Content"
 	}
-	
-	status := fmt.Sprintf("Focus: %s | j/k: navigate | h/l: switch pane | q: quit", focusIndicator)
+
+	status := fmt.Sprintf("Focus: %s | j/k: navigate | h/l: switch pane | q: quit | r: reply", focusIndicator)
 	return statusBarStyle.Render(status)
 }
 
@@ -549,12 +550,12 @@ func (m *Model) updateViewportSizes() {
 	if availableHeight < 1 {
 		availableHeight = 1
 	}
-	
+
 	// List pane takes 40% of width, separator takes 1 char, content pane takes the rest
 	listWidth := m.width * 40 / 100
 	separatorWidth := 1
 	contentWidth := m.width - listWidth - separatorWidth
-	
+
 	// Ensure minimum widths
 	if listWidth < 10 {
 		listWidth = 10
@@ -562,20 +563,20 @@ func (m *Model) updateViewportSizes() {
 	if contentWidth < 10 {
 		contentWidth = 10
 	}
-	
+
 	// Update list viewport dimensions
 	m.listViewport.Width = listWidth
 	m.listViewport.Height = availableHeight
-	
+
 	// Update content viewport dimensions
 	m.contentViewport.Width = contentWidth
 	m.contentViewport.Height = availableHeight
-	
+
 	// Refresh viewport content to apply new dimensions
 	if len(m.emailList) > 0 {
 		m.refreshListViewport()
 	}
-	
+
 	if m.currentEmail != nil {
 		m.refreshContentViewport()
 	}
@@ -598,37 +599,37 @@ func (m *Model) refreshContentViewport() {
 	if m.currentEmail == nil {
 		return
 	}
-	
+
 	var content string
-	
+
 	// Render subject
 	content += subjectStyle.Render(m.currentEmail.Subject) + "\n\n"
-	
+
 	// Render headers
 	content += m.renderHeader("From:", m.currentEmail.From)
 	content += m.renderHeader("To:", m.formatRecipients(m.currentEmail.To))
-	
+
 	if len(m.currentEmail.Cc) > 0 {
 		content += m.renderHeader("Cc:", m.formatRecipients(m.currentEmail.Cc))
 	}
-	
+
 	content += m.renderHeader("Date:", m.currentEmail.Date.Format("Mon, Jan 02, 2006 at 3:04 PM"))
-	
+
 	// Render body content
 	body := m.currentEmail.Body
 	if body == "" && m.currentEmail.HTMLBody != "" {
 		body = m.htmlToPlainText(m.currentEmail.HTMLBody)
 	}
-	
+
 	if body != "" {
 		content += bodyStyle.Render(body)
 	}
-	
+
 	// Render attachments
 	if len(m.currentEmail.Attachments) > 0 {
 		content += "\n\n" + m.renderAttachments(m.currentEmail.Attachments)
 	}
-	
+
 	m.contentViewport.SetContent(content)
 }
 
@@ -846,6 +847,7 @@ func (m *Model) renderEmptyContent() string {
 	message := "Select an email to view its content"
 	return emptyContentStyle.Render(message)
 }
+
 // SetEmailList updates the model with a list of emails
 func (m *Model) SetEmailList(emails []EmailListItem) {
 	m.emailList = emails
@@ -890,4 +892,3 @@ func (m *Model) SetResponseHandler(handler response.ResponseHandler) {
 func (m *Model) SetOnLoadEmail(callback func(key string) tea.Cmd) {
 	m.onLoadEmail = callback
 }
-
