@@ -55,7 +55,7 @@ func New(cfg *config.Config) (*Application, error) {
 	if sesRegion == "" {
 		sesRegion = cfg.Region
 	}
-	
+
 	sesClient, err := sesclient.NewSESClient(ctx, sesclient.Config{
 		Region:     sesRegion,
 		AWSProfile: cfg.AWSProfile,
@@ -109,6 +109,7 @@ func (app *Application) LoadEmailList(ctx context.Context) ([]s3client.EmailMeta
 
 	return emails, nil
 }
+
 // LoadEmailCmd returns a Bubble Tea command that loads an email asynchronously
 // This integrates with the TUI's message-based architecture for async operations.
 //
@@ -163,7 +164,6 @@ func (app *Application) LoadEmailCmd(key string) tea.Cmd {
 		}
 	}
 }
-
 
 // LoadEmail retrieves and parses a specific email from S3, using cache if enabled
 // Returns the parsed email or an error if the email cannot be retrieved or parsed
@@ -243,8 +243,8 @@ func (app *Application) Shutdown() error {
 
 	return nil
 }
+
 // GetModel returns the TUI model for initialization
 func (app *Application) GetModel() *tui.Model {
 	return app.model
 }
-

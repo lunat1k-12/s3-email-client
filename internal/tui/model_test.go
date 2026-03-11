@@ -456,7 +456,7 @@ func TestRenderStatusBar(t *testing.T) {
 			model: Model{
 				loading: true,
 			},
-			shouldContain: []string{"Loading..."},
+			shouldContain: []string{"Loading email..."},
 		},
 		{
 			name: "error message",
@@ -555,7 +555,7 @@ func TestStatusBarWithLoadingState(t *testing.T) {
 	view := m.View()
 
 	// Loading indicator should be present in the view
-	if !strings.Contains(view, "Loading...") {
+	if !strings.Contains(view, "Loading email...") {
 		t.Error("Expected loading indicator in view")
 	}
 }
@@ -698,8 +698,11 @@ func TestModel_EmailLoadingMessages(t *testing.T) {
 		if !m.loading {
 			t.Error("LoadEmailMsg should set loading to true")
 		}
-		if m.statusMessage != "Loading email..." {
-			t.Errorf("LoadEmailMsg should set status message, got %q", m.statusMessage)
+		if m.statusMessage != "" {
+			t.Errorf("LoadEmailMsg should clear status message, got %q", m.statusMessage)
+		}
+		if m.loadingEmailKey != "test.eml" {
+			t.Errorf("LoadEmailMsg should set loadingEmailKey, got %q", m.loadingEmailKey)
 		}
 		if m.err != nil {
 			t.Error("LoadEmailMsg should clear error")

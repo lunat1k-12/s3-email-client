@@ -71,6 +71,8 @@ type Model struct {
 	emailList          []EmailListItem
 	selectedIndex      int
 	currentEmail       *Email
+	currentEmailKey    string        // Key of currently displayed email
+	loadingEmailKey    string        // Key of email currently being loaded
 	currentParserEmail *parser.Email // Original parser.Email for response actions
 
 	// UI state
@@ -220,13 +222,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Set loading state when email loading starts
 		m.loading = true
 		m.err = nil
-		m.statusMessage = "Loading email..."
+		m.statusMessage = ""        // Don't set statusMessage, let loading flag handle it
+		m.loadingEmailKey = msg.Key // Track which email we're loading
 		return m, nil
 
 	case EmailLoadedMsg:
 		// Update model with loaded email
 		m.currentEmail = msg.Email
 		m.currentParserEmail = msg.ParserEmail
+		m.currentEmailKey = m.loadingEmailKey // Update the displayed email key
+		m.loadingEmailKey = ""                // Clear loading key
 		m.loading = false
 		m.statusMessage = ""
 		m.err = nil
@@ -239,6 +244,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMessage = ""
 		m.err = msg.Err
 		m.currentEmail = nil
+		m.currentEmailKey = "" // Clear the displayed key on error
+		m.loadingEmailKey = "" // Clear loading key
 		return m, nil
 	}
 
@@ -276,6 +283,22 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 		// Trigger email loading if selection changed
 		if oldIndex != m.selectedIndex && m.selectedIndex < len(m.emailList) {
 			emailKey := m.emailList[m.selectedIndex].Key
+
+			// Skip loading if we're already viewing this email
+			if m.currentEmailKey == emailKey && m.currentEmail != nil {
+				// Already viewing this email, no need to reload
+				// Ensure loading state is cleared
+				m.loading = false
+				m.loadingEmailKey = ""
+				return m, nil
+			}
+
+			// If we're currently loading this same email, don't send another load request
+			if m.loadingEmailKey == emailKey && m.loading {
+				// Already loading this email, don't duplicate the request
+				return m, nil
+			}
+
 			if m.onLoadEmail != nil {
 				// Return both LoadEmailMsg (for UI state) and the async load command
 				return m, tea.Batch(
@@ -530,7 +553,7 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	if m.loading {
-		return loadingStyle.Render("Loading...")
+		return loadingStyle.Render("Loading email...")
 	}
 
 	// Default status showing keybindings
@@ -668,13 +691,29 @@ func (m *Model) renderEmailListItem(email EmailListItem, selected bool) string {
 	// Format the date
 	dateStr := email.Date.Format("Jan 02, 2006")
 
-	// Truncate subject and sender if too long
-	maxSubjectLen := 35
-	maxSenderLen := 25
+	// Calculate available width (viewport width minus padding from style)
+	// normalItemStyle and selectedItemStyle both have Padding(0, 1) = 2 chars total
+	availableWidth := m.listViewport.Width - 2
 
+	// If viewport not initialized (e.g., in tests), use a reasonable default
+	if availableWidth <= 0 {
+		availableWidth = 50
+	}
+
+	// Subject line gets full width
+	maxSubjectLen := availableWidth
 	subject := email.Subject
 	if len(subject) > maxSubjectLen {
 		subject = subject[:maxSubjectLen-3] + "..."
+	}
+
+	// Second line: sender + " • " + date
+	// Date is fixed at 12 chars, separator is 3 chars (" • ")
+	dateLen := len(dateStr) // Should be 12 for "Jan 02, 2006"
+	separatorLen := 3       // " • "
+	maxSenderLen := availableWidth - dateLen - separatorLen
+	if maxSenderLen < 5 {
+		maxSenderLen = 5 // Minimum sender length
 	}
 
 	sender := email.From
