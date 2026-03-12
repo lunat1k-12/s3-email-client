@@ -2,6 +2,10 @@
 
 A terminal-based email client for viewing and responding to emails stored in Amazon S3 buckets. Built with Go and the Bubble Tea TUI framework.
 
+## Demo
+
+![Demo](demo.gif)
+
 ## Overview
 
 S3 Email Client provides a text-based user interface (TUI) for managing emails that are stored in S3 via Amazon SES inbound email receiving. It allows you to browse, view, and respond to emails directly from your terminal.
