@@ -125,3 +125,17 @@ func TestHandleKey_UnknownKey(t *testing.T) {
 		t.Errorf("Expected NoOpAction for unknown key, got %T", action)
 	}
 }
+
+func TestHandleKey_Refresh(t *testing.T) {
+	handler := NewNavigationHandler()
+	state := &State{
+		FocusedPane:   ListPane,
+		SelectedIndex: 0,
+		EmailCount:    5,
+	}
+
+	action := handler.HandleKey("R", state)
+	if _, ok := action.(*RefreshAction); !ok {
+		t.Errorf("Expected RefreshAction, got %T", action)
+	}
+}

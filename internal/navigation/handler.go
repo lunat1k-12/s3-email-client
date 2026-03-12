@@ -104,6 +104,10 @@ func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
 		// No email selected, no action
 		return &NoOpAction{}
 
+	case "R":
+		// Refresh email list from S3
+		return &RefreshAction{}
+
 	case "q":
 		// Quit application
 		return &QuitAction{}

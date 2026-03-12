@@ -60,6 +60,7 @@ type Model struct {
 	err              error
 	errorMessage     string
 	errorDisplayTime time.Time
+	lastRefreshTime  time.Time
 
 	// Terminal dimensions
 	width  int
@@ -70,6 +71,7 @@ type Model struct {
 	responseHandler response.ResponseHandler
 	onLoadEmail     func(key string) tea.Cmd
 	onDeleteEmail   func(key string) tea.Cmd
+	onRefreshList   func() tea.Cmd
 }
 
 // EmailListItem represents an email in the list view
@@ -158,6 +160,10 @@ func (m *Model) SetOnLoadEmail(callback func(key string) tea.Cmd) {
 // SetOnDeleteEmail sets the callback for deleting emails
 func (m *Model) SetOnDeleteEmail(callback func(key string) tea.Cmd) {
 	m.onDeleteEmail = callback
+}
+// SetOnRefreshList sets the callback for refreshing the email list
+func (m *Model) SetOnRefreshList(callback func() tea.Cmd) {
+	m.onRefreshList = callback
 }
 
 // SetEmailList sets the email list, sorts by date, and refreshes the list viewport
@@ -516,6 +522,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			// Handle Shift+R refresh action even in compose mode
+			if msg.String() == "R" {
+				m.statusMessage = "Refreshing email list..."
+				m.err = nil
+				if m.onRefreshList != nil {
+					return m, m.onRefreshList()
+				}
+				return m, nil
+			}
+
 			// Handle Ctrl+S send action
 			if msg.String() == "ctrl+s" {
 				m.composeSending = true
@@ -612,6 +628,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case EmailListLoadedMsg:
 		// Set email list
 		m.SetEmailList(msg.Emails)
+		
+		// Clear status message and errors
+		m.statusMessage = ""
+		m.err = nil
+		
+		// Update last refresh time
+		m.lastRefreshTime = time.Now()
 		
 		// Mark email list as loaded
 		m.emailListLoaded = true
@@ -750,7 +773,7 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	// Default status showing keybindings
-	status := "j/k: list | J/K: scroll | q: quit | r: reply | d: delete"
+	status := "j/k: list | J/K: scroll | q: quit | r: reply | d: delete | R: refresh"
 	return statusBarStyle.Render(status)
 }
 
@@ -760,13 +783,23 @@ func (m *Model) renderEmailListPane() string {
 		return m.renderEmptyList()
 	}
 
-	// Create header with email count (rendered outside viewport)
+	// Create header with email count and last refresh time (rendered outside viewport)
 	emailCount := len(m.emailList)
 	countStr := fmt.Sprintf("%d emails", emailCount)
 	if emailCount == 1 {
 		countStr = "1 email"
 	}
-	header := listHeaderStyle.Render(countStr)
+	
+	// Add last refresh time if available
+	var headerText string
+	if !m.lastRefreshTime.IsZero() {
+		refreshStr := m.lastRefreshTime.Format("15:04:05")
+		headerText = fmt.Sprintf("%s | Last refreshed: %s", countStr, refreshStr)
+	} else {
+		headerText = countStr
+	}
+	
+	header := listHeaderStyle.Render(headerText)
 
 	var content string
 	for i, email := range m.emailList {
@@ -1016,6 +1049,15 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 		m.showDeleteModal = false
 		m.deleteTargetKey = ""
 		m.deleteTargetSubject = ""
+		return m, nil
+
+	case *navigation.RefreshAction:
+		// Refresh email list from S3
+		m.statusMessage = "Refreshing email list..."
+		m.err = nil
+		if m.onRefreshList != nil {
+			return m, m.onRefreshList()
+		}
 		return m, nil
 
 	case *navigation.QuitAction:

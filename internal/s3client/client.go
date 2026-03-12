@@ -22,6 +22,9 @@ type S3Client interface {
 	// DeleteEmail removes an email file from the configured bucket
 	DeleteEmail(ctx context.Context, key string) error
 
+	// InvalidateCache clears the cached email list
+	InvalidateCache()
+
 	// Close releases any resources held by the client
 	Close() error
 }
@@ -183,6 +186,12 @@ func (c *client) DeleteEmail(ctx context.Context, key string) error {
 	c.cacheValid = false
 
 	return nil
+}
+
+// InvalidateCache clears the cached email list, forcing the next ListEmails call to fetch fresh data
+func (c *client) InvalidateCache() {
+	c.cacheValid = false
+	c.cache = nil
 }
 
 // Close releases any resources held by the client

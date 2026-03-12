@@ -79,6 +79,13 @@ func (a *ConfirmDeleteAction) Execute() bool {
 
 // CancelDeleteAction cancels the deletion
 type CancelDeleteAction struct{}
+// RefreshAction refreshes the email list from S3
+type RefreshAction struct{}
+
+// Execute implements Action for RefreshAction
+func (a *RefreshAction) Execute() bool {
+	return true
+}
 
 // Execute implements Action for CancelDeleteAction
 func (a *CancelDeleteAction) Execute() bool {

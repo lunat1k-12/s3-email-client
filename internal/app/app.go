@@ -92,12 +92,18 @@ func New(cfg *config.Config) (*Application, error) {
 	// Wire email delete callback into the model
 	model.SetOnDeleteEmail(app.DeleteEmailCmd)
 
+	// Wire email list refresh callback into the model
+	model.SetOnRefreshList(app.LoadEmailListCmd)
+
 	return app, nil
 }
 
 // LoadEmailList retrieves the list of email files from S3 and returns metadata
 // Handles S3 errors and empty bucket scenarios according to requirements 1.2, 1.3, 1.4
 func (app *Application) LoadEmailList(ctx context.Context) ([]s3client.EmailMetadata, error) {
+	// Invalidate S3 cache to ensure fresh data
+	app.s3Client.InvalidateCache()
+	
 	// Retrieve email list from S3
 	emails, err := app.s3Client.ListEmails(ctx)
 	if err != nil {
