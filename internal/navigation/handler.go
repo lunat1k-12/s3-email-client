@@ -10,13 +10,15 @@ type NavigationHandler interface {
 
 // State represents the current navigation state needed for decision making
 type State struct {
-	FocusedPane   Pane
-	SelectedIndex int
-	EmailCount    int
-	ContentScroll int
-	MaxScroll     int
-	CurrentEmail  *parser.Email // Current selected email for response actions
-	ComposeMode   bool          // Whether compose view is active
+	FocusedPane       Pane
+	SelectedIndex     int
+	EmailCount        int
+	ContentScroll     int
+	MaxScroll         int
+	CurrentEmail      *parser.Email // Current selected email for response actions
+	CurrentEmailKey   string        // Key of current email in S3
+	ComposeMode       bool          // Whether compose view is active
+	DeleteModalActive bool          // Whether delete confirmation modal is shown
 }
 
 // Pane represents which pane currently has focus
@@ -37,6 +39,19 @@ func NewNavigationHandler() NavigationHandler {
 
 // HandleKey maps keyboard events to actions with boundary validation
 func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
+	// Handle delete modal keys first (highest priority)
+	if state.DeleteModalActive {
+		switch key {
+		case "y", "Y":
+			return &ConfirmDeleteAction{}
+		case "n", "N", "esc":
+			return &CancelDeleteAction{}
+		default:
+			// Modal is active, ignore all other keys
+			return &NoOpAction{}
+		}
+	}
+
 	// Disable navigation keys in compose mode
 	if state.ComposeMode {
 		switch key {
@@ -69,6 +84,17 @@ func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
 	case "K":
 		// Scroll email content up
 		return &ScrollContentAction{Lines: -1}
+
+	case "d":
+		// Initiate email deletion
+		if state.CurrentEmail != nil && state.SelectedIndex >= 0 {
+			return &DeleteAction{
+				Key:     state.CurrentEmailKey,
+				Subject: state.CurrentEmail.Subject,
+			}
+		}
+		// No email selected, no action
+		return &NoOpAction{}
 
 	case "r":
 		// Initiate email response

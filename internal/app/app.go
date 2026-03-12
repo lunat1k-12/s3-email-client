@@ -89,6 +89,9 @@ func New(cfg *config.Config) (*Application, error) {
 	// Wire email loading callback into the model
 	model.SetOnLoadEmail(app.LoadEmailCmd)
 
+	// Wire email delete callback into the model
+	model.SetOnDeleteEmail(app.DeleteEmailCmd)
+
 	return app, nil
 }
 
@@ -109,6 +112,88 @@ func (app *Application) LoadEmailList(ctx context.Context) ([]s3client.EmailMeta
 
 	return emails, nil
 }
+// LoadEmailListCmd returns a Bubble Tea command that loads the email list asynchronously
+// This integrates with the TUI's message-based architecture for async operations.
+//
+// The command performs the following operations:
+// 1. Calls LoadEmailList to retrieve email metadata from S3
+// 2. Converts EmailMetadata to TUI EmailListItem format
+// 3. Returns either EmailListLoadedMsg (success) or EmailLoadErrorMsg (failure)
+//
+// Note: Subject and From fields are initially empty and will be populated when
+// individual emails are loaded. This allows for fast list loading without parsing
+// every email upfront.
+//
+// Requirements: 5.1
+func (app *Application) LoadEmailListCmd() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		emails, err := app.LoadEmailList(ctx)
+		if err != nil {
+			return tui.EmailLoadErrorMsg{Err: err}
+		}
+
+		// Convert EmailMetadata to TUI EmailListItem format
+		tuiEmails := make([]tui.EmailListItem, len(emails))
+		for i, email := range emails {
+			tuiEmails[i] = tui.EmailListItem{
+				Key:     email.Key,
+				Subject: "", // Will be populated when email is loaded
+				From:    "", // Will be populated when email is loaded
+				Date:    email.LastModified,
+			}
+		}
+
+		return tui.EmailListLoadedMsg{
+			Emails: tuiEmails,
+		}
+	}
+}
+// DeleteEmail deletes an email from S3 and removes it from cache if caching is enabled
+// Returns an error if the deletion fails
+// Requirements: 3.1, 3.2
+func (app *Application) DeleteEmail(ctx context.Context, key string) error {
+	// Delete from S3
+	err := app.s3Client.DeleteEmail(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to delete email from S3: %w", err)
+	}
+
+	// Remove from cache if caching is enabled
+	if app.config.CacheEmails {
+		delete(app.emailCache, key)
+	}
+
+	return nil
+}
+
+// DeleteEmailCmd returns a Bubble Tea command that deletes an email asynchronously
+// This integrates with the TUI's message-based architecture for async operations.
+//
+// The command performs the following operations:
+// 1. Calls DeleteEmail to remove the email from S3
+// 2. Invalidates the cache if caching is enabled
+// 3. Returns either EmailDeletedMsg (success) or EmailDeleteErrorMsg (failure)
+//
+// Requirements: 3.1, 3.4, 3.5
+func (app *Application) DeleteEmailCmd(key string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		err := app.DeleteEmail(ctx, key)
+		if err != nil {
+			return tui.EmailDeleteErrorMsg{
+				Key: key,
+				Err: err,
+			}
+		}
+
+		return tui.EmailDeletedMsg{
+			Key: key,
+		}
+	}
+}
+
+
 
 // LoadEmailCmd returns a Bubble Tea command that loads an email asynchronously
 // This integrates with the TUI's message-based architecture for async operations.
@@ -211,7 +296,29 @@ func (app *Application) cacheEmail(key string, email *parser.Email) {
 
 // Run initializes the Bubble Tea program and starts the application
 // This method blocks until the application exits
+// Requirements: 5.1 - Load email list on startup for auto-load functionality
 func (app *Application) Run() error {
+	// Load email list on startup
+	ctx := context.Background()
+	emails, err := app.LoadEmailList(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load email list: %w", err)
+	}
+
+	// Convert emails to TUI format
+	tuiEmails := make([]tui.EmailListItem, len(emails))
+	for i, email := range emails {
+		tuiEmails[i] = tui.EmailListItem{
+			Key:     email.Key,
+			Subject: email.Key, // Use S3 key as subject until email is loaded
+			From:    "",        // Will be populated when email is loaded
+			Date:    email.LastModified,
+		}
+	}
+
+	// Set email list in model
+	app.model.SetEmailList(tuiEmails)
+
 	// Initialize the Bubble Tea program
 	app.program = tea.NewProgram(
 		app.model,

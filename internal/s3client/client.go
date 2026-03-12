@@ -19,6 +19,9 @@ type S3Client interface {
 	// DownloadEmail retrieves the raw content of an email file
 	DownloadEmail(ctx context.Context, key string) ([]byte, error)
 
+	// DeleteEmail removes an email file from the configured bucket
+	DeleteEmail(ctx context.Context, key string) error
+
 	// Close releases any resources held by the client
 	Close() error
 }
@@ -159,6 +162,27 @@ func (c *client) DownloadEmail(ctx context.Context, key string) ([]byte, error) 
 	}
 
 	return data, nil
+}
+
+// DeleteEmail removes an email file from the configured bucket
+func (c *client) DeleteEmail(ctx context.Context, key string) error {
+	if key == "" {
+		return fmt.Errorf("key is required")
+	}
+
+	// Delete object from S3
+	_, err := c.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(c.bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete object %s from bucket %s: %w", key, c.bucketName, err)
+	}
+
+	// Invalidate cache on success
+	c.cacheValid = false
+
+	return nil
 }
 
 // Close releases any resources held by the client

@@ -58,3 +58,29 @@ type NoOpAction struct{}
 func (a *NoOpAction) Execute() bool {
 	return false
 }
+// DeleteAction initiates email deletion workflow
+type DeleteAction struct {
+	Key     string
+	Subject string
+}
+
+// Execute implements Action for DeleteAction
+func (a *DeleteAction) Execute() bool {
+	return true
+}
+
+// ConfirmDeleteAction confirms the deletion
+type ConfirmDeleteAction struct{}
+
+// Execute implements Action for ConfirmDeleteAction
+func (a *ConfirmDeleteAction) Execute() bool {
+	return true
+}
+
+// CancelDeleteAction cancels the deletion
+type CancelDeleteAction struct{}
+
+// Execute implements Action for CancelDeleteAction
+func (a *CancelDeleteAction) Execute() bool {
+	return true
+}
