@@ -113,14 +113,14 @@ func TestUpdateViewportSizes(t *testing.T) {
 
 	m.updateViewportSizes()
 
-	// List pane should be 40% of width (no border adjustment)
-	expectedWidth := 100 * 40 / 100 // 40
+	// List pane should be 40% of width minus border (4 chars)
+	expectedWidth := 100*40/100 - 4 // 36
 	if m.listViewport.Width != expectedWidth {
 		t.Errorf("Expected list viewport width %d, got %d", expectedWidth, m.listViewport.Width)
 	}
 
-	// Height should be terminal height minus 1 (for status bar)
-	expectedHeight := 30 - 1 // 29
+	// Height should be terminal height minus status bar (1) and borders/header (3)
+	expectedHeight := 30 - 1 - 3 // 26
 	if m.listViewport.Height != expectedHeight {
 		t.Errorf("Expected list viewport height %d, got %d", expectedHeight, m.listViewport.Height)
 	}
@@ -407,25 +407,28 @@ func TestUpdateViewportSizesWithContentPane(t *testing.T) {
 
 	m.updateViewportSizes()
 
-	// List pane should be 40% of width (no border adjustment)
-	expectedListWidth := 100 * 40 / 100 // 40
+	// List pane should be 40% of width minus border (4 chars)
+	expectedListWidth := 100*40/100 - 4 // 36
 	if m.listViewport.Width != expectedListWidth {
 		t.Errorf("Expected list viewport width %d, got %d", expectedListWidth, m.listViewport.Width)
 	}
 
-	// Content pane should be 60% of width minus separator (1 char)
-	expectedContentWidth := 100 - (100 * 40 / 100) - 1 // 59
+	// Content pane should be 60% of width minus separator (1 char) minus border (4 chars)
+	expectedContentWidth := 100 - (100 * 40 / 100) - 1 - 4 // 55
 	if m.contentViewport.Width != expectedContentWidth {
 		t.Errorf("Expected content viewport width %d, got %d", expectedContentWidth, m.contentViewport.Width)
 	}
 
-	// Both should have same height (terminal height minus 1 for status bar)
-	expectedHeight := 30 - 1 // 29
-	if m.listViewport.Height != expectedHeight {
-		t.Errorf("Expected list viewport height %d, got %d", expectedHeight, m.listViewport.Height)
+	// List viewport height: terminal height minus status bar (1) and borders/header (3)
+	expectedListHeight := 30 - 1 - 3 // 26
+	if m.listViewport.Height != expectedListHeight {
+		t.Errorf("Expected list viewport height %d, got %d", expectedListHeight, m.listViewport.Height)
 	}
-	if m.contentViewport.Height != expectedHeight {
-		t.Errorf("Expected content viewport height %d, got %d", expectedHeight, m.contentViewport.Height)
+	
+	// Content viewport height: terminal height minus status bar (1) and borders (2)
+	expectedContentHeight := 30 - 1 - 2 // 27
+	if m.contentViewport.Height != expectedContentHeight {
+		t.Errorf("Expected content viewport height %d, got %d", expectedContentHeight, m.contentViewport.Height)
 	}
 }
 

@@ -74,4 +74,15 @@ var (
 	// Separator style
 	separatorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
+
+	// Border styles for list and content panes
+	listPaneBorderStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("99")).
+				Padding(0, 1)
+
+	contentPaneBorderStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("141")).
+				Padding(0, 1)
 )

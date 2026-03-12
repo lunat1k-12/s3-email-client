@@ -372,17 +372,13 @@ func (m *Model) View() string {
 		return m.renderComposeView()
 	}
 
-	// Render both panes side by side
+	// Render both panes with borders
 	listPane := m.renderEmailListPane()
 	contentPane := m.renderEmailContentPane()
 
-	// Split the panes into lines for side-by-side rendering
-	listLines := strings.Split(listPane, "\n")
-	contentLines := strings.Split(contentPane, "\n")
-
 	// Calculate pane widths (40/60 split with 1 char separator)
-	// Ensure minimum widths to prevent negative values
-	minWidth := 10
+	// Account for border width (2 chars per side = 4 total per pane)
+	minWidth := 14 // Minimum to accommodate borders
 	if m.width < minWidth*2+1 {
 		// Terminal too small, just show list pane
 		return m.renderEmailListPane() + "\n" + m.renderStatusBar()
@@ -401,6 +397,14 @@ func (m *Model) View() string {
 		contentWidth = minWidth
 		listWidth = m.width - contentWidth - separatorWidth
 	}
+
+	// Apply borders to panes
+	listPaneWithBorder := listPaneBorderStyle.Width(listWidth - 4).Render(listPane)
+	contentPaneWithBorder := contentPaneBorderStyle.Width(contentWidth - 4).Render(contentPane)
+
+	// Split the bordered panes into lines for side-by-side rendering
+	listLines := strings.Split(listPaneWithBorder, "\n")
+	contentLines := strings.Split(contentPaneWithBorder, "\n")
 
 	// Ensure we have enough lines for both panes
 	maxLines := len(listLines)
@@ -566,29 +570,46 @@ func (m *Model) updateViewportSizes() {
 	}
 
 	// List pane takes 40% of width, separator takes 1 char, content pane takes the rest
+	// Account for borders: 4 chars per pane (2 on each side)
 	listWidth := m.width * 40 / 100
 	separatorWidth := 1
 	contentWidth := m.width - listWidth - separatorWidth
 
 	// Ensure minimum widths
-	if listWidth < 10 {
-		listWidth = 10
+	if listWidth < 14 {
+		listWidth = 14
 	}
-	if contentWidth < 10 {
-		contentWidth = 10
+	if contentWidth < 14 {
+		contentWidth = 14
 	}
 
-	// Update list viewport dimensions (reserve 1 line for header)
-	m.listViewport.Width = listWidth
-	listViewportHeight := availableHeight - 1
+	// Calculate inner viewport widths (subtract border and padding: 4 chars total)
+	listViewportWidth := listWidth - 4
+	contentViewportWidth := contentWidth - 4
+
+	// Ensure positive widths
+	if listViewportWidth < 1 {
+		listViewportWidth = 1
+	}
+	if contentViewportWidth < 1 {
+		contentViewportWidth = 1
+	}
+
+	// Update list viewport dimensions (reserve 1 line for header, 2 for borders)
+	m.listViewport.Width = listViewportWidth
+	listViewportHeight := availableHeight - 3
 	if listViewportHeight < 1 {
 		listViewportHeight = 1
 	}
 	m.listViewport.Height = listViewportHeight
 
-	// Update content viewport dimensions
-	m.contentViewport.Width = contentWidth
-	m.contentViewport.Height = availableHeight
+	// Update content viewport dimensions (account for borders: 2 lines)
+	m.contentViewport.Width = contentViewportWidth
+	contentViewportHeight := availableHeight - 2
+	if contentViewportHeight < 1 {
+		contentViewportHeight = 1
+	}
+	m.contentViewport.Height = contentViewportHeight
 
 	// Refresh viewport content to apply new dimensions
 	if len(m.emailList) > 0 {
