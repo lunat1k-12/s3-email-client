@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -562,7 +563,8 @@ func (m *Model) renderStatusBar() string {
 		focusIndicator = "Content"
 	}
 
-	status := fmt.Sprintf("Focus: %s | j/k: navigate | h/l: switch pane | q: quit | r: reply", focusIndicator)
+	status := fmt.Sprintf("Focus: %s | j/k: navigate | h/l: switch pane | q: quit | r: reply",
+		focusIndicator)
 	return statusBarStyle.Render(status)
 }
 
@@ -587,9 +589,13 @@ func (m *Model) updateViewportSizes() {
 		contentWidth = 10
 	}
 
-	// Update list viewport dimensions
+	// Update list viewport dimensions (reserve 1 line for header)
 	m.listViewport.Width = listWidth
-	m.listViewport.Height = availableHeight
+	listViewportHeight := availableHeight - 1
+	if listViewportHeight < 1 {
+		listViewportHeight = 1
+	}
+	m.listViewport.Height = listViewportHeight
 
 	// Update content viewport dimensions
 	m.contentViewport.Width = contentWidth
@@ -662,6 +668,14 @@ func (m *Model) renderEmailListPane() string {
 		return m.renderEmptyList()
 	}
 
+	// Create header with email count (rendered outside viewport)
+	emailCount := len(m.emailList)
+	countStr := fmt.Sprintf("%d emails", emailCount)
+	if emailCount == 1 {
+		countStr = "1 email"
+	}
+	header := listHeaderStyle.Render(countStr)
+
 	var content string
 	for i, email := range m.emailList {
 		content += m.renderEmailListItem(email, i == m.selectedIndex)
@@ -670,7 +684,7 @@ func (m *Model) renderEmailListPane() string {
 		}
 	}
 
-	// Set viewport content and ensure selected item is visible
+	// Set viewport content WITHOUT header
 	m.listViewport.SetContent(content)
 
 	// Calculate line offset for selected item (each item is 2 lines)
@@ -683,7 +697,8 @@ func (m *Model) renderEmailListPane() string {
 		m.listViewport.YOffset = selectedLine - m.listViewport.Height + 2
 	}
 
-	return m.listViewport.View()
+	// Return header above viewport
+	return header + "\n" + m.listViewport.View()
 }
 
 // renderEmailListItem renders a single email list item with styling
@@ -889,6 +904,19 @@ func (m *Model) renderEmptyContent() string {
 
 // SetEmailList updates the model with a list of emails
 func (m *Model) SetEmailList(emails []EmailListItem) {
+	// Sort emails by date (descending order, newest first)
+	sort.SliceStable(emails, func(i, j int) bool {
+		// Handle zero-value dates (place at end)
+		if emails[i].Date.IsZero() && !emails[j].Date.IsZero() {
+			return false
+		}
+		if !emails[i].Date.IsZero() && emails[j].Date.IsZero() {
+			return true
+		}
+		// Both zero or both non-zero: compare normally (descending)
+		return emails[i].Date.After(emails[j].Date)
+	})
+
 	m.emailList = emails
 	if len(emails) > 0 && m.selectedIndex >= len(emails) {
 		m.selectedIndex = 0

@@ -21,6 +21,12 @@ var (
 			Foreground(lipgloss.Color("241")).
 			Italic(true)
 
+	// listHeaderStyle is the style for the list header showing email count
+	listHeaderStyle = lipgloss.NewStyle().
+			Padding(0, 1).
+			Foreground(lipgloss.Color("141")).
+			Bold(true)
+
 	// Content pane styles
 	headerLabelStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("99")).
