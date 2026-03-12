@@ -40,47 +40,39 @@ func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
 	// Disable navigation keys in compose mode
 	if state.ComposeMode {
 		switch key {
-		case "j", "k", "h", "l":
+		case "j", "k", "J", "K":
 			return &NoOpAction{}
 		}
 	}
 
 	switch key {
 	case "j":
-		if state.FocusedPane == ListPane {
-			// Move selection down in email list
-			if state.SelectedIndex < state.EmailCount-1 {
-				return &MoveSelectionAction{Direction: 1}
-			}
-			// At bottom, stay at bottom (boundary validation)
-			return &NoOpAction{}
+		// Move selection down in email list
+		if state.SelectedIndex < state.EmailCount-1 {
+			return &MoveSelectionAction{Direction: 1}
 		}
-		// Content pane: scroll down
-		return &ScrollContentAction{Lines: 1}
+		// At bottom, stay at bottom (boundary validation)
+		return &NoOpAction{}
 
 	case "k":
-		if state.FocusedPane == ListPane {
-			// Move selection up in email list
-			if state.SelectedIndex > 0 {
-				return &MoveSelectionAction{Direction: -1}
-			}
-			// At top, stay at top (boundary validation)
-			return &NoOpAction{}
+		// Move selection up in email list
+		if state.SelectedIndex > 0 {
+			return &MoveSelectionAction{Direction: -1}
 		}
-		// Content pane: scroll up
+		// At top, stay at top (boundary validation)
+		return &NoOpAction{}
+
+	case "J":
+		// Scroll email content down
+		return &ScrollContentAction{Lines: 1}
+
+	case "K":
+		// Scroll email content up
 		return &ScrollContentAction{Lines: -1}
-
-	case "h":
-		// Move focus to list pane
-		return &ChangeFocusAction{Pane: ListPane}
-
-	case "l":
-		// Move focus to content pane
-		return &ChangeFocusAction{Pane: ContentPane}
 
 	case "r":
 		// Initiate email response
-		if state.FocusedPane == ListPane && state.CurrentEmail != nil {
+		if state.CurrentEmail != nil {
 			return &ResponseAction{Email: state.CurrentEmail}
 		}
 		// No email selected, no action

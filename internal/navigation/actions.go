@@ -23,16 +23,6 @@ func (a *MoveSelectionAction) Execute() bool {
 	return true
 }
 
-// ChangeFocusAction changes which pane has focus
-type ChangeFocusAction struct {
-	Pane Pane
-}
-
-// Execute implements Action for ChangeFocusAction
-func (a *ChangeFocusAction) Execute() bool {
-	return true
-}
-
 // ScrollContentAction scrolls the content pane
 type ScrollContentAction struct {
 	Lines int // Positive for down, negative for up

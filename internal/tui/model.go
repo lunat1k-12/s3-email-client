@@ -311,11 +311,6 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	case *navigation.ChangeFocusAction:
-		// Update focused pane
-		m.focusedPane = Pane(a.Pane)
-		return m, nil
-
 	case *navigation.ScrollContentAction:
 		// Scroll content viewport
 		if a.Lines > 0 {
@@ -558,13 +553,7 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	// Default status showing keybindings
-	focusIndicator := "List"
-	if m.focusedPane == ContentPane {
-		focusIndicator = "Content"
-	}
-
-	status := fmt.Sprintf("Focus: %s | j/k: navigate | h/l: switch pane | q: quit | r: reply",
-		focusIndicator)
+	status := "j/k: list | J/K: scroll | q: quit | r: reply"
 	return statusBarStyle.Render(status)
 }
 

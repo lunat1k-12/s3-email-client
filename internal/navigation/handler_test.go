@@ -68,47 +68,15 @@ func TestHandleKey_BoundaryBottom(t *testing.T) {
 	}
 }
 
-func TestHandleKey_ChangeFocusLeft(t *testing.T) {
-	handler := NewNavigationHandler()
-	state := &State{
-		FocusedPane: ContentPane,
-	}
-
-	action := handler.HandleKey("h", state)
-	if _, ok := action.(*ChangeFocusAction); !ok {
-		t.Errorf("Expected ChangeFocusAction, got %T", action)
-	}
-
-	focusAction := action.(*ChangeFocusAction)
-	if focusAction.Pane != ListPane {
-		t.Errorf("Expected ListPane, got %v", focusAction.Pane)
-	}
-}
-
-func TestHandleKey_ChangeFocusRight(t *testing.T) {
-	handler := NewNavigationHandler()
-	state := &State{
-		FocusedPane: ListPane,
-	}
-
-	action := handler.HandleKey("l", state)
-	if _, ok := action.(*ChangeFocusAction); !ok {
-		t.Errorf("Expected ChangeFocusAction, got %T", action)
-	}
-
-	focusAction := action.(*ChangeFocusAction)
-	if focusAction.Pane != ContentPane {
-		t.Errorf("Expected ContentPane, got %v", focusAction.Pane)
-	}
-}
-
 func TestHandleKey_ScrollContentDown(t *testing.T) {
 	handler := NewNavigationHandler()
 	state := &State{
-		FocusedPane: ContentPane,
+		FocusedPane:   ListPane,
+		SelectedIndex: 0,
+		EmailCount:    5,
 	}
 
-	action := handler.HandleKey("j", state)
+	action := handler.HandleKey("J", state)
 	if _, ok := action.(*ScrollContentAction); !ok {
 		t.Errorf("Expected ScrollContentAction, got %T", action)
 	}
@@ -122,10 +90,12 @@ func TestHandleKey_ScrollContentDown(t *testing.T) {
 func TestHandleKey_ScrollContentUp(t *testing.T) {
 	handler := NewNavigationHandler()
 	state := &State{
-		FocusedPane: ContentPane,
+		FocusedPane:   ListPane,
+		SelectedIndex: 2,
+		EmailCount:    5,
 	}
 
-	action := handler.HandleKey("k", state)
+	action := handler.HandleKey("K", state)
 	if _, ok := action.(*ScrollContentAction); !ok {
 		t.Errorf("Expected ScrollContentAction, got %T", action)
 	}

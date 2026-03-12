@@ -442,14 +442,14 @@ func TestRenderStatusBar(t *testing.T) {
 			model: Model{
 				focusedPane: ListPane,
 			},
-			shouldContain: []string{"Focus: List", "j/k: navigate", "h/l: switch pane", "q: quit"},
+			shouldContain: []string{"j/k: list", "J/K: scroll", "q: quit"},
 		},
 		{
 			name: "default status with content pane focused",
 			model: Model{
 				focusedPane: ContentPane,
 			},
-			shouldContain: []string{"Focus: Content", "j/k: navigate", "h/l: switch pane", "q: quit"},
+			shouldContain: []string{"j/k: list", "J/K: scroll", "q: quit"},
 		},
 		{
 			name: "loading indicator",
@@ -524,31 +524,13 @@ func (e *testError) Error() string {
 	return e.msg
 }
 
-func TestStatusBarInView(t *testing.T) {
-	m := Model{
-		emailList:     []EmailListItem{},
-		width:         80,
-		height:        24,
-		focusedPane:   ListPane,
-		listViewport:  viewport.New(32, 23),
-		contentViewport: viewport.New(48, 23),
-	}
-
-	view := m.View()
-
-	// Status bar should be present in the view
-	if !strings.Contains(view, "Focus: List") {
-		t.Error("Expected status bar to be present in view")
-	}
-}
-
 func TestStatusBarWithLoadingState(t *testing.T) {
 	m := Model{
-		emailList:     []EmailListItem{},
-		width:         80,
-		height:        24,
-		loading:       true,
-		listViewport:  viewport.New(32, 23),
+		emailList:       []EmailListItem{},
+		width:           80,
+		height:          24,
+		loading:         true,
+		listViewport:    viewport.New(32, 23),
 		contentViewport: viewport.New(48, 23),
 	}
 
@@ -562,11 +544,11 @@ func TestStatusBarWithLoadingState(t *testing.T) {
 
 func TestStatusBarWithErrorState(t *testing.T) {
 	m := Model{
-		emailList:     []EmailListItem{},
-		width:         80,
-		height:        24,
-		err:           &testError{msg: "S3 bucket not found"},
-		listViewport:  viewport.New(32, 23),
+		emailList:       []EmailListItem{},
+		width:           80,
+		height:          24,
+		err:             &testError{msg: "S3 bucket not found"},
+		listViewport:    viewport.New(32, 23),
 		contentViewport: viewport.New(48, 23),
 	}
 
@@ -583,11 +565,11 @@ func TestStatusBarWithErrorState(t *testing.T) {
 
 func TestStatusBarWithCustomMessage(t *testing.T) {
 	m := Model{
-		emailList:     []EmailListItem{},
-		width:         80,
-		height:        24,
-		statusMessage: "Parsing email content...",
-		listViewport:  viewport.New(32, 23),
+		emailList:       []EmailListItem{},
+		width:           80,
+		height:          24,
+		statusMessage:   "Parsing email content...",
+		listViewport:    viewport.New(32, 23),
 		contentViewport: viewport.New(48, 23),
 	}
 
@@ -646,26 +628,6 @@ func TestStatusBarPriorityOrder(t *testing.T) {
 	}
 }
 
-func TestStatusBarFocusIndicator(t *testing.T) {
-	// Test List pane focus
-	m1 := Model{
-		focusedPane: ListPane,
-	}
-	result1 := m1.renderStatusBar()
-	if !strings.Contains(result1, "Focus: List") {
-		t.Error("Expected 'Focus: List' for ListPane")
-	}
-
-	// Test Content pane focus
-	m2 := Model{
-		focusedPane: ContentPane,
-	}
-	result2 := m2.renderStatusBar()
-	if !strings.Contains(result2, "Focus: Content") {
-		t.Error("Expected 'Focus: Content' for ContentPane")
-	}
-}
-
 func TestStatusBarKeybindingHelp(t *testing.T) {
 	m := Model{
 		focusedPane: ListPane,
@@ -675,8 +637,8 @@ func TestStatusBarKeybindingHelp(t *testing.T) {
 
 	// Verify all keybinding hints are present
 	expectedHints := []string{
-		"j/k: navigate",
-		"h/l: switch pane",
+		"j/k: list",
+		"J/K: scroll",
 		"q: quit",
 	}
 
@@ -690,10 +652,10 @@ func TestStatusBarKeybindingHelp(t *testing.T) {
 func TestModel_EmailLoadingMessages(t *testing.T) {
 	t.Run("LoadEmailMsg sets loading state", func(t *testing.T) {
 		model := &Model{}
-		
+
 		msg := LoadEmailMsg{Key: "test.eml"}
 		updatedModel, _ := model.Update(msg)
-		
+
 		m := updatedModel.(*Model)
 		if !m.loading {
 			t.Error("LoadEmailMsg should set loading to true")
@@ -711,19 +673,19 @@ func TestModel_EmailLoadingMessages(t *testing.T) {
 
 	t.Run("EmailLoadedMsg updates current email", func(t *testing.T) {
 		model := &Model{
-			loading: true,
+			loading:       true,
 			statusMessage: "Loading...",
 		}
-		
+
 		testEmail := &Email{
 			Subject: "Test Subject",
 			From:    "test@example.com",
 			Body:    "Test body",
 		}
-		
+
 		msg := EmailLoadedMsg{Email: testEmail}
 		updatedModel, _ := model.Update(msg)
-		
+
 		m := updatedModel.(*Model)
 		if m.loading {
 			t.Error("EmailLoadedMsg should set loading to false")
@@ -744,14 +706,14 @@ func TestModel_EmailLoadingMessages(t *testing.T) {
 
 	t.Run("EmailLoadErrorMsg sets error state", func(t *testing.T) {
 		model := &Model{
-			loading: true,
+			loading:      true,
 			currentEmail: &Email{Subject: "Old Email"},
 		}
-		
+
 		testErr := fmt.Errorf("failed to load email")
 		msg := EmailLoadErrorMsg{Err: testErr}
 		updatedModel, _ := model.Update(msg)
-		
+
 		m := updatedModel.(*Model)
 		if m.loading {
 			t.Error("EmailLoadErrorMsg should set loading to false")
@@ -776,14 +738,14 @@ func TestModel_SetMethods(t *testing.T) {
 		model := &Model{
 			listViewport: viewport.Model{},
 		}
-		
+
 		emails := []EmailListItem{
 			{Key: "email1.eml", Subject: "Test 1"},
 			{Key: "email2.eml", Subject: "Test 2"},
 		}
-		
+
 		model.SetEmailList(emails)
-		
+
 		if len(model.emailList) != 2 {
 			t.Errorf("SetEmailList() emailList length = %d, want 2", len(model.emailList))
 		}
@@ -793,14 +755,14 @@ func TestModel_SetMethods(t *testing.T) {
 		model := &Model{
 			contentViewport: viewport.Model{},
 		}
-		
+
 		email := &Email{
 			Subject: "Test Email",
 			From:    "test@example.com",
 		}
-		
+
 		model.SetCurrentEmail(email)
-		
+
 		if model.currentEmail == nil {
 			t.Fatal("SetCurrentEmail() should set currentEmail")
 		}
@@ -811,12 +773,12 @@ func TestModel_SetMethods(t *testing.T) {
 
 	t.Run("SetLoading updates loading state", func(t *testing.T) {
 		model := &Model{}
-		
+
 		model.SetLoading(true)
 		if !model.loading {
 			t.Error("SetLoading(true) should set loading to true")
 		}
-		
+
 		model.SetLoading(false)
 		if model.loading {
 			t.Error("SetLoading(false) should set loading to false")
@@ -825,10 +787,10 @@ func TestModel_SetMethods(t *testing.T) {
 
 	t.Run("SetError updates error state", func(t *testing.T) {
 		model := &Model{}
-		
+
 		testErr := fmt.Errorf("test error")
 		model.SetError(testErr)
-		
+
 		if model.err == nil {
 			t.Fatal("SetError() should set error")
 		}
@@ -839,9 +801,9 @@ func TestModel_SetMethods(t *testing.T) {
 
 	t.Run("SetStatusMessage updates status message", func(t *testing.T) {
 		model := &Model{}
-		
+
 		model.SetStatusMessage("Test status")
-		
+
 		if model.statusMessage != "Test status" {
 			t.Errorf("statusMessage = %q, want %q", model.statusMessage, "Test status")
 		}
