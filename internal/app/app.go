@@ -138,8 +138,8 @@ func (app *Application) LoadEmailListCmd() tea.Cmd {
 		for i, email := range emails {
 			tuiEmails[i] = tui.EmailListItem{
 				Key:     email.Key,
-				Subject: "", // Will be populated when email is loaded
-				From:    "", // Will be populated when email is loaded
+				Subject: email.Key, // Use S3 key as subject until email is loaded
+				From:    "",        // Will be populated when email is loaded
 				Date:    email.LastModified,
 			}
 		}
@@ -298,33 +298,18 @@ func (app *Application) cacheEmail(key string, email *parser.Email) {
 // This method blocks until the application exits
 // Requirements: 5.1 - Load email list on startup for auto-load functionality
 func (app *Application) Run() error {
-	// Load email list on startup
-	ctx := context.Background()
-	emails, err := app.LoadEmailList(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load email list: %w", err)
-	}
-
-	// Convert emails to TUI format
-	tuiEmails := make([]tui.EmailListItem, len(emails))
-	for i, email := range emails {
-		tuiEmails[i] = tui.EmailListItem{
-			Key:     email.Key,
-			Subject: email.Key, // Use S3 key as subject until email is loaded
-			From:    "",        // Will be populated when email is loaded
-			Date:    email.LastModified,
-		}
-	}
-
-	// Set email list in model
-	app.model.SetEmailList(tuiEmails)
-
 	// Initialize the Bubble Tea program
 	app.program = tea.NewProgram(
 		app.model,
 		tea.WithAltScreen(),       // Use alternate screen buffer
 		tea.WithMouseCellMotion(), // Enable mouse support
 	)
+
+	// Send initial command to load email list
+	// This will trigger the auto-load flow via EmailListLoadedMsg
+	go func() {
+		app.program.Send(app.LoadEmailListCmd()())
+	}()
 
 	// Run the program
 	if _, err := app.program.Run(); err != nil {
