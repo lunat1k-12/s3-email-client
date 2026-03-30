@@ -336,14 +336,16 @@ func (m *Model) renderNormalView() string {
 
 	// Apply borders to panes
 	// The Width() sets the content width, so we subtract 4 (2 chars per side for border + padding)
+	// Height() sets the content height; lipgloss adds 2 more for top/bottom border lines,
+	// so total box height = (m.height - 3) + 2 = m.height - 1, leaving 1 row for the status bar.
 	listPaneWithBorder := listPaneBorderStyle.
 		Width(listWidth - 4).
-		Height(m.height - 2). // Reserve space for status bar
+		Height(m.height - 3).
 		Render(listPane)
-	
+
 	contentPaneWithBorder := contentPaneBorderStyle.
 		Width(contentWidth - 4).
-		Height(m.height - 2). // Reserve space for status bar
+		Height(m.height - 3).
 		Render(contentPane)
 
 	// Combine panes side by side using lipgloss JoinHorizontal
@@ -719,7 +721,8 @@ func padOrTruncate(s string, width int) string {
 	return s + strings.Repeat(" ", padding)
 }
 
-// wrapText wraps text to fit within the specified width
+// wrapText wraps text to fit within the specified width.
+// Long words (e.g. URLs with tokens) are hard-broken at the width boundary.
 func wrapText(text string, width int) string {
 	if width <= 0 {
 		return text
@@ -734,25 +737,36 @@ func wrapText(text string, width int) string {
 			continue
 		}
 
-		// Wrap long lines
 		words := strings.Fields(line)
 		if len(words) == 0 {
 			wrappedLines = append(wrappedLines, "")
 			continue
 		}
 
-		currentLine := words[0]
-		for _, word := range words[1:] {
-			// Check if adding the next word would exceed width
-			if len(currentLine)+1+len(word) <= width {
+		currentLine := ""
+		for _, word := range words {
+			// Hard-break words (e.g. long URLs) that exceed the width on their own.
+			for len(word) > width {
+				if currentLine != "" {
+					wrappedLines = append(wrappedLines, currentLine)
+					currentLine = ""
+				}
+				wrappedLines = append(wrappedLines, word[:width])
+				word = word[width:]
+			}
+
+			if currentLine == "" {
+				currentLine = word
+			} else if len(currentLine)+1+len(word) <= width {
 				currentLine += " " + word
 			} else {
-				// Start a new line
 				wrappedLines = append(wrappedLines, currentLine)
 				currentLine = word
 			}
 		}
-		wrappedLines = append(wrappedLines, currentLine)
+		if currentLine != "" {
+			wrappedLines = append(wrappedLines, currentLine)
+		}
 	}
 
 	return strings.Join(wrappedLines, "\n")
@@ -1108,9 +1122,10 @@ func (m *Model) updateViewportSizes() {
 		contentViewportWidth = 1
 	}
 
-	// Update list viewport dimensions (reserve 1 line for header, 2 for borders)
+	// Update list viewport dimensions (reserve 1 line for header, 1 for the separator
+	// newline between header and viewport, and 2 for top/bottom border lines = 4 total)
 	m.listViewport.Width = listViewportWidth
-	listViewportHeight := availableHeight - 3
+	listViewportHeight := availableHeight - 4
 	if listViewportHeight < 1 {
 		listViewportHeight = 1
 	}
