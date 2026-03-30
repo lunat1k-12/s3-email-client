@@ -3,10 +3,12 @@ package tui
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -49,6 +51,11 @@ type Model struct {
 	showDeleteModal     bool
 	deleteTargetKey     string
 	deleteTargetSubject string
+
+	// Link picker state
+	linkPickerMode  bool
+	links           []string
+	linkPickerIndex int
 
 	// Auto-load state
 	autoLoadPending bool
@@ -511,6 +518,32 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle link picker keys (highest priority after delete modal)
+		if m.linkPickerMode {
+			switch msg.String() {
+			case "esc":
+				m.linkPickerMode = false
+			case "j":
+				if m.linkPickerIndex < len(m.links)-1 {
+					m.linkPickerIndex++
+				}
+			case "k":
+				if m.linkPickerIndex > 0 {
+					m.linkPickerIndex--
+				}
+			case "enter":
+				if m.linkPickerIndex < len(m.links) {
+					if err := clipboard.WriteAll(m.links[m.linkPickerIndex]); err != nil {
+						m.statusMessage = "Failed to copy: " + err.Error()
+					} else {
+						m.statusMessage = "Link copied to clipboard!"
+						m.linkPickerMode = false
+					}
+				}
+			}
+			return m, nil
+		}
+
 		// Handle textarea input in compose mode
 		if m.composeMode {
 			// Handle Esc cancel action
@@ -588,6 +621,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				CurrentEmailKey:   m.currentEmailKey,
 				ComposeMode:       m.composeMode,
 				DeleteModalActive: m.showDeleteModal,
+				LinkPickerActive:  m.linkPickerMode,
 			}
 
 			// Get action from navigation handler
@@ -787,7 +821,7 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	// Default status showing keybindings
-	status := "j/k: list | J/K: scroll | q: quit | r: reply | d: delete | R: refresh"
+	status := "j/k: list | J/K: scroll | q: quit | r: reply | l: links | d: delete | R: refresh"
 	return statusBarStyle.Render(status)
 }
 
@@ -1065,6 +1099,24 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 		m.deleteTargetSubject = ""
 		return m, nil
 
+	case *navigation.OpenLinkPickerAction:
+		// Extract URLs from current email body and show link picker
+		body := ""
+		if m.currentEmail != nil {
+			body = m.currentEmail.Body
+			if body == "" && m.currentEmail.HTMLBody != "" {
+				body = m.htmlToPlainText(m.currentEmail.HTMLBody)
+			}
+		}
+		m.links = extractURLs(body)
+		m.linkPickerIndex = 0
+		if len(m.links) == 0 {
+			m.statusMessage = "No links found in this email"
+		} else {
+			m.linkPickerMode = true
+		}
+		return m, nil
+
 	case *navigation.RefreshAction:
 		// Refresh email list from S3
 		m.statusMessage = "Refreshing email list..."
@@ -1086,6 +1138,88 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 		// Unknown action type, do nothing
 		return m, nil
 	}
+}
+
+// urlRegex matches http and https URLs in plain text
+var urlRegex = regexp.MustCompile(`https?://[^\s<>"'\x00-\x1f]+`)
+
+// extractURLs finds all unique URLs in text, stripping trailing punctuation that is
+// almost certainly not part of the URL (period, comma, closing parens, etc.).
+func extractURLs(text string) []string {
+	raw := urlRegex.FindAllString(text, -1)
+	seen := make(map[string]bool)
+	var unique []string
+	for _, u := range raw {
+		u = strings.TrimRight(u, ".,;:!?)'\"")
+		if u != "" && !seen[u] {
+			seen[u] = true
+			unique = append(unique, u)
+		}
+	}
+	return unique
+}
+
+// renderLinkPickerModal renders the link picker as a centred modal overlay.
+func (m *Model) renderLinkPickerModal() string {
+	// Modal width: 80 % of terminal, capped to avoid tiny or excessive sizes.
+	modalWidth := m.width * 80 / 100
+	if modalWidth < 50 {
+		modalWidth = 50
+	}
+	if modalWidth > m.width-4 {
+		modalWidth = m.width - 4
+	}
+
+	// Inner content width (modal width minus border 2 + padding 4)
+	innerWidth := modalWidth - 6
+	if innerWidth < 10 {
+		innerWidth = 10
+	}
+
+	var content strings.Builder
+
+	if len(m.links) == 0 {
+		content.WriteString("No links found in this email.\n\n")
+		content.WriteString("Esc  close")
+	} else {
+		hint := fmt.Sprintf("%d link(s) found    j/k navigate · Enter copy · Esc cancel", len(m.links))
+		content.WriteString(linkPickerHintStyle.Render(hint))
+		content.WriteString("\n\n")
+
+		for i, link := range m.links {
+			// Truncate the display URL to fit inside the modal.
+			display := link
+			if len(display) > innerWidth {
+				display = display[:innerWidth-3] + "..."
+			}
+			if i == m.linkPickerIndex {
+				content.WriteString(linkPickerSelectedStyle.Render("▶ " + display))
+			} else {
+				content.WriteString(linkPickerItemStyle.Render("  " + display))
+			}
+			if i < len(m.links)-1 {
+				content.WriteString("\n")
+			}
+		}
+	}
+
+	modalStyle := lipgloss.NewStyle().
+		Width(modalWidth-4).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("99")).
+		Padding(1, 2)
+
+	modal := modalStyle.Render(content.String())
+
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		modal,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.Color("240")),
+	)
 }
 
 // updateViewportSizes updates viewport dimensions based on terminal size

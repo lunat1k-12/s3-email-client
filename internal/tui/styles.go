@@ -75,6 +75,19 @@ var (
 	separatorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240"))
 
+	// Link picker styles
+	linkPickerHintStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("241")).
+				Italic(true)
+
+	linkPickerSelectedStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("230")).
+					Background(lipgloss.Color("62")).
+					Bold(true)
+
+	linkPickerItemStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("252"))
+
 	// Border styles for list and content panes
 	listPaneBorderStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).

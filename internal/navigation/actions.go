@@ -91,3 +91,11 @@ func (a *RefreshAction) Execute() bool {
 func (a *CancelDeleteAction) Execute() bool {
 	return true
 }
+
+// OpenLinkPickerAction opens the link picker overlay for the current email
+type OpenLinkPickerAction struct{}
+
+// Execute implements Action for OpenLinkPickerAction
+func (a *OpenLinkPickerAction) Execute() bool {
+	return true
+}

@@ -19,6 +19,7 @@ type State struct {
 	CurrentEmailKey   string        // Key of current email in S3
 	ComposeMode       bool          // Whether compose view is active
 	DeleteModalActive bool          // Whether delete confirmation modal is shown
+	LinkPickerActive  bool          // Whether link picker overlay is shown
 }
 
 // Pane represents which pane currently has focus
@@ -39,6 +40,11 @@ func NewNavigationHandler() NavigationHandler {
 
 // HandleKey maps keyboard events to actions with boundary validation
 func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
+	// Link picker keys are handled directly in the TUI model before reaching here
+	if state.LinkPickerActive {
+		return &NoOpAction{}
+	}
+
 	// Handle delete modal keys first (highest priority)
 	if state.DeleteModalActive {
 		switch key {
@@ -102,6 +108,13 @@ func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
 			return &ResponseAction{Email: state.CurrentEmail}
 		}
 		// No email selected, no action
+		return &NoOpAction{}
+
+	case "l":
+		// Open link picker for the current email
+		if state.CurrentEmail != nil {
+			return &OpenLinkPickerAction{}
+		}
 		return &NoOpAction{}
 
 	case "R":
