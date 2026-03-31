@@ -113,6 +113,11 @@ func TestValidate(t *testing.T) {
 }
 
 func TestLoadWithEnvironmentVariables(t *testing.T) {
+	// Point HOME to an empty temp dir so the real config file is not read
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", t.TempDir())
+	defer os.Setenv("HOME", originalHome)
+
 	// Set environment variables
 	os.Setenv("S3EMAIL_BUCKET_NAME", "env-test-bucket")
 	os.Setenv("S3EMAIL_REGION", "eu-west-1")

@@ -216,6 +216,11 @@ func (m *Model) SetError(err error) {
 	m.err = err
 }
 
+// SetLoading sets the loading state
+func (m *Model) SetLoading(loading bool) {
+	m.loading = loading
+}
+
 // removeEmailFromList removes an email from the list by key
 // It adjusts the selectedIndex if needed and clears currentEmail if the deleted email was current
 func (m *Model) removeEmailFromList(key string) {
@@ -1316,10 +1321,9 @@ func (m *Model) updateViewportSizes() {
 		contentViewportWidth = 1
 	}
 
-	// Update list viewport dimensions (reserve 1 line for header, 1 for the separator
-	// newline between header and viewport, and 2 for top/bottom border lines = 4 total)
+	// Update list viewport dimensions (header takes 1 line, 2 for top/bottom border lines = 3 total)
 	m.listViewport.Width = listViewportWidth
-	listViewportHeight := availableHeight - 4
+	listViewportHeight := availableHeight - 3
 	if listViewportHeight < 1 {
 		listViewportHeight = 1
 	}

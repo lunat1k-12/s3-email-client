@@ -364,6 +364,12 @@ func (m *mockS3Client) DownloadEmail(ctx context.Context, key string) ([]byte, e
 	return m.data, nil
 }
 
+func (m *mockS3Client) DeleteEmail(ctx context.Context, key string) error {
+	return m.err
+}
+
+func (m *mockS3Client) InvalidateCache() {}
+
 func (m *mockS3Client) Close() error {
 	return nil
 }
