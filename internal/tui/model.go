@@ -557,16 +557,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Handle Shift+R refresh action even in compose mode
-			if msg.String() == "R" {
-				m.statusMessage = "Refreshing email list..."
-				m.err = nil
-				if m.onRefreshList != nil {
-					return m, m.onRefreshList()
-				}
-				return m, nil
-			}
-
 			// Handle Ctrl+S send action
 			if msg.String() == "ctrl+s" {
 				m.composeSending = true
