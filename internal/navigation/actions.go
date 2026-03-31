@@ -99,3 +99,11 @@ type OpenLinkPickerAction struct{}
 func (a *OpenLinkPickerAction) Execute() bool {
 	return true
 }
+
+// NewEmailAction initiates composing a new outbound email
+type NewEmailAction struct{}
+
+// Execute implements Action for NewEmailAction
+func (a *NewEmailAction) Execute() bool {
+	return true
+}

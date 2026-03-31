@@ -11,6 +11,7 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"s3emailclient/internal/navigation"
@@ -42,10 +43,14 @@ type Model struct {
 	contentViewport viewport.Model
 
 	// Compose view state
-	composeMode    bool
-	composeData    *response.ComposeData
-	composeInput   textarea.Model
-	composeSending bool
+	composeMode          bool
+	composeData          *response.ComposeData
+	composeInput         textarea.Model
+	composeSending       bool
+	composeIsNew         bool          // true when composing a new email (vs reply)
+	composeToInput       textinput.Model
+	composeSubjectInput  textinput.Model
+	composeFocusedField  int           // 0=To, 1=Subject, 2=Body (new email only)
 
 	// Delete confirmation state
 	showDeleteModal     bool
@@ -549,6 +554,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Handle Esc cancel action
 			if msg.String() == "esc" {
 				m.composeMode = false
+				m.composeIsNew = false
 				m.composeData = nil
 				m.composeInput.Reset()
 				m.composeSending = false
@@ -562,6 +568,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.composeSending = true
 
 				if m.responseHandler != nil && m.composeData != nil {
+					// Sync editable fields for new email before sending
+					if m.composeIsNew {
+						m.composeData.To = m.composeToInput.Value()
+						m.composeData.Subject = m.composeSubjectInput.Value()
+					}
+
 					ctx := context.Background()
 					err := m.responseHandler.SendResponse(ctx, m.composeData)
 
@@ -573,6 +585,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 
 					m.composeMode = false
+					m.composeIsNew = false
 					m.composeSending = false
 					m.composeData = nil
 					m.statusMessage = "Email sent successfully"
@@ -586,7 +599,44 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Handle regular textarea input
+			// New email: Tab cycles between To / Subject / Body fields
+			if m.composeIsNew && msg.String() == "tab" {
+				m.composeFocusedField = (m.composeFocusedField + 1) % 3
+				switch m.composeFocusedField {
+				case 0:
+					m.composeToInput.Focus()
+					m.composeSubjectInput.Blur()
+					m.composeInput.Blur()
+				case 1:
+					m.composeToInput.Blur()
+					m.composeSubjectInput.Focus()
+					m.composeInput.Blur()
+				case 2:
+					m.composeToInput.Blur()
+					m.composeSubjectInput.Blur()
+					m.composeInput.Focus()
+				}
+				return m, nil
+			}
+
+			// Route input to the focused field (new email only)
+			if m.composeIsNew {
+				var cmd tea.Cmd
+				switch m.composeFocusedField {
+				case 0:
+					m.composeToInput, cmd = m.composeToInput.Update(msg)
+				case 1:
+					m.composeSubjectInput, cmd = m.composeSubjectInput.Update(msg)
+				case 2:
+					m.composeInput, cmd = m.composeInput.Update(msg)
+					if m.composeData != nil {
+						m.composeData.Body = m.composeInput.Value()
+					}
+				}
+				return m, cmd
+			}
+
+			// Handle regular textarea input (reply mode)
 			var cmd tea.Cmd
 			m.composeInput, cmd = m.composeInput.Update(msg)
 
@@ -811,7 +861,7 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	// Default status showing keybindings
-	status := "j/k: list | J/K: scroll | q: quit | r: reply | l: links | d: delete | R: refresh"
+	status := "j/k: list | J/K: scroll | q: quit | r: reply | n: new email | l: links | d: delete | R: refresh"
 	return statusBarStyle.Render(status)
 }
 
@@ -1063,6 +1113,26 @@ func (m *Model) executeAction(action navigation.Action) (tea.Model, tea.Cmd) {
 		m.err = nil
 		m.statusMessage = ""
 
+		return m, nil
+
+	case *navigation.NewEmailAction:
+		composeData, err := m.responseHandler.InitiateNewEmail(context.Background())
+		if err != nil {
+			m.err = err
+			m.statusMessage = ""
+			return m, nil
+		}
+		m.composeMode = true
+		m.composeIsNew = true
+		m.composeFocusedField = 0
+		m.composeData = composeData
+		m.composeInput = initComposeTextarea()
+		m.composeInput.Blur()
+		m.composeToInput = initComposeTextInput("recipient@example.com")
+		m.composeSubjectInput = initComposeTextInput("Subject")
+		m.composeToInput.Focus()
+		m.err = nil
+		m.statusMessage = ""
 		return m, nil
 
 	case *navigation.DeleteAction:

@@ -117,6 +117,10 @@ func (h *DefaultNavigationHandler) HandleKey(key string, state *State) Action {
 		}
 		return &NoOpAction{}
 
+	case "n":
+		// Compose a new email
+		return &NewEmailAction{}
+
 	case "R":
 		// Refresh email list from S3
 		return &RefreshAction{}

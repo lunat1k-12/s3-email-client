@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -70,15 +71,16 @@ func (m *Model) renderComposeView() string {
 		innerH = 8
 	}
 
-	// Fixed rows inside the panel:
+	// Fixed rows inside the panel (reply has an extra context line):
 	//   To field       1
 	//   Subject field  1
 	//   top divider    1
 	//   bottom divider 1
-	//   context line   1
-	//              ─────
-	//   total          5
-	const fixedRows = 5
+	//   context line   1  (reply only)
+	fixedRows := 5
+	if m.composeIsNew {
+		fixedRows = 4
+	}
 	taH := innerH - fixedRows
 	if taH < 3 {
 		taH = 3
@@ -91,17 +93,32 @@ func (m *Model) renderComposeView() string {
 	// Assemble panel content.
 	var b strings.Builder
 
-	b.WriteString(renderComposeFieldRow("To", m.composeData.To, innerW))
-	b.WriteString("\n")
-	b.WriteString(renderComposeFieldRow("Subject", m.composeData.Subject, innerW))
+	if m.composeIsNew {
+		// Editable textinput fields for new email
+		toInputW := innerW - 10 - 1 // label width 10 + space 1
+		if toInputW < 10 {
+			toInputW = 10
+		}
+		m.composeToInput.Width = toInputW
+		m.composeSubjectInput.Width = toInputW
+		b.WriteString(composeFieldLabelStyle.Render("To:") + " " + m.composeToInput.View())
+		b.WriteString("\n")
+		b.WriteString(composeFieldLabelStyle.Render("Subject:") + " " + m.composeSubjectInput.View())
+	} else {
+		b.WriteString(renderComposeFieldRow("To", m.composeData.To, innerW))
+		b.WriteString("\n")
+		b.WriteString(renderComposeFieldRow("Subject", m.composeData.Subject, innerW))
+	}
 	b.WriteString("\n")
 	b.WriteString(composeDividerStyle.Render(strings.Repeat("─", innerW)))
 	b.WriteString("\n")
 	b.WriteString(m.composeInput.View())
 	b.WriteString("\n")
 	b.WriteString(composeDividerStyle.Render(strings.Repeat("─", innerW)))
-	b.WriteString("\n")
-	b.WriteString(m.renderReplyContext(innerW))
+	if replyCtx := m.renderReplyContext(innerW); replyCtx != "" {
+		b.WriteString("\n")
+		b.WriteString(replyCtx)
+	}
 
 	// Wrap in a full-screen rounded-border panel.
 	// Width must be innerW+2 because lipgloss word-wraps at (Width - leftPad - rightPad).
@@ -156,7 +173,12 @@ func (m *Model) renderReplyContext(width int) string {
 
 // renderComposeFooter renders the key-hint bar at the bottom of the compose view.
 func (m *Model) renderComposeFooter() string {
-	hint := "  Ctrl+S  send reply   ·   Esc  cancel"
+	var hint string
+	if m.composeIsNew {
+		hint = "  Ctrl+S  send email   ·   Tab  next field   ·   Esc  cancel"
+	} else {
+		hint = "  Ctrl+S  send reply   ·   Esc  cancel"
+	}
 	// Fill remaining width so the dark background spans the full terminal.
 	padLen := m.width - 2 - len(hint) // -2 for Padding(0,1) in the style
 	if padLen > 0 {
@@ -175,6 +197,19 @@ func (m *Model) renderSendingOverlay() string {
 		lipgloss.WithWhitespaceChars(" "),
 		lipgloss.WithWhitespaceForeground(lipgloss.Color("240")),
 	)
+}
+
+// initComposeTextInput initialises a single-line textinput used for the To/Subject fields
+// in new-email compose mode.
+func initComposeTextInput(placeholder string) textinput.Model {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.CharLimit = 500
+	ti.PromptStyle = lipgloss.NewStyle() // no prompt glyph
+	ti.Prompt = ""
+	ti.TextStyle = composeFieldValueStyle
+	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	return ti
 }
 
 // initComposeTextarea initialises and returns a configured textarea for the reply body.

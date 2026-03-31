@@ -18,6 +18,9 @@ type ResponseHandler interface {
 	// Returns compose data or error if email cannot be replied to
 	InitiateResponse(ctx context.Context, email *parser.Email) (*ComposeData, error)
 
+	// InitiateNewEmail prepares a blank compose form for a new outbound email
+	InitiateNewEmail(ctx context.Context) (*ComposeData, error)
+
 	// SendResponse sends the composed email via SES
 	SendResponse(ctx context.Context, compose *ComposeData) error
 }
@@ -108,6 +111,17 @@ func (h *DefaultResponseHandler) InitiateResponse(ctx context.Context, email *pa
 	return composeData, nil
 }
 
+// InitiateNewEmail prepares a blank ComposeData for composing a new outbound email
+func (h *DefaultResponseHandler) InitiateNewEmail(ctx context.Context) (*ComposeData, error) {
+	if err := h.config.ValidateSourceEmail(); err != nil {
+		return nil, err
+	}
+	return &ComposeData{
+		To:      "",
+		Subject: "",
+		Body:    "",
+	}, nil
+}
 
 // SendResponse sends the composed email via SES
 // It validates the body, builds an EmailMessage, and calls the SES client
